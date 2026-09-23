@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LandingForge IA</title>
+<meta name="description" content="Genera prompts de landing pages con las 8 técnicas avanzadas de diseño con IA, combínalos, ejecútalos y guarda las mejores en un banco.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23E4572E'/%3E%3Cpath d='M9 22V10h4v8h8v4z' fill='%23fff'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+<header class="app-head">
+  <a class="brand" href="#brief" data-go="brief">
+    <svg viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="7" fill="var(--accent)"/><path d="M9 22V10h4v8h8v4z" fill="var(--on-accent)"/></svg>
+    <span><strong>LandingForge</strong><small>Prompts de landing pages con IA</small></span>
+  </a>
+  <nav class="steps" aria-label="Pasos">
+    <button class="step" data-go="brief"><b>1</b><span>Proyecto</span></button>
+    <button class="step" data-go="techniques"><b>2</b><span>Técnicas y prompts</span></button>
+    <button class="step" data-go="studio"><b>3</b><span>Estudio</span></button>
+    <button class="step" data-go="bank"><b>4</b><span>Banco de landings</span></button>
+    <button class="step step-guide" data-go="guide"><b>?</b><span>Guía</span></button>
+  </nav>
+  <button class="icon-btn" id="themeToggle" title="Cambiar tema claro/oscuro" aria-label="Cambiar tema claro u oscuro">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9z" fill="currentColor"/></svg>
+  </button>
+</header>
+
+<main id="app">
+
+  <!-- ===================== 1 · PROYECTO ===================== -->
+  <section class="view" id="view-brief" data-view="brief">
+    <div class="intro" id="intro">
+      <div>
+        <p class="kicker">Cómo funciona</p>
+        <h1>De una idea a una landing page, pasando por el prompt perfecto.</h1>
+        <ol class="flow">
+          <li><b>1</b><span><strong>Describe</strong> el proyecto y sus datos básicos.</span></li>
+          <li><b>2</b><span><strong>Elige</strong> técnicas: un prompt por técnica o uno combinado.</span></li>
+          <li><b>3</b><span><strong>Ejecuta</strong> el prompt y la app construye la landing.</span></li>
+          <li><b>4</b><span><strong>Guarda</strong> las mejores en el banco, junto a su prompt.</span></li>
+        </ol>
+      </div>
+      <button class="icon-btn close" id="introClose" aria-label="Ocultar introducción">✕</button>
+    </div>
+
+    <div class="two-col">
+      <form id="briefForm" class="panel" autocomplete="off" novalidate>
+        <div class="panel-head">
+          <div><h2>Tu proyecto</h2><p class="muted">Solo el <b>tema</b> es obligatorio. Cuanto más completes, más preciso será el prompt.</p></div>
+          <div class="head-actions">
+            <label class="select-inline"><span class="sr-only">Cargar ejemplo</span>
+              <select id="exampleSelect"><option value="">Cargar un ejemplo…</option></select>
+            </label>
+            <button type="button" class="btn ghost sm" id="briefClear">Limpiar</button>
+          </div>
+        </div>
+        <div id="briefFields"></div>
+      </form>
+
+      <aside class="side">
+        <div class="panel sticky">
+          <h3>Fuerza del brief</h3>
+          <div class="meter" aria-hidden="true"><i id="briefMeter"></i></div>
+          <p class="meter-num"><b id="briefScore">0</b>/100 <span id="briefLabel" class="muted"></span></p>
+          <ul class="tips" id="briefTips"></ul>
+          <button class="btn primary block" id="toTechniques" type="button">Continuar a técnicas <span aria-hidden="true">→</span></button>
+          <p class="muted tiny center">Se guarda solo mientras escribes.</p>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ===================== 2 · TÉCNICAS ===================== -->
+  <section class="view" id="view-techniques" data-view="techniques" hidden>
+    <div class="two-col wide-right">
+      <div>
+        <div class="panel-head plain">
+          <div>
+            <h2>Técnicas del tratado</h2>
+            <p class="muted">Marca las técnicas que quieras usar. Genera <b>un prompt por técnica</b> o <b>combina dos o más</b> en un solo prompt.</p>
+          </div>
+        </div>
+        <div class="presets" id="presets"></div>
+        <div id="techGroups"></div>
+      </div>
+
+      <aside class="side">
+        <div class="panel sticky out-panel">
+          <div class="tabs" role="tablist">
+            <button role="tab" class="tab on" data-otab="result" aria-selected="true">Prompts generados</button>
+            <button role="tab" class="tab" data-otab="history" aria-selected="false">Historial <span class="count" id="histCount">0</span></button>
+          </div>
+          <div id="outResult" class="out-body">
+            <div class="empty" id="outEmpty">
+              <svg viewBox="0 0 64 64" aria-hidden="true"><rect x="10" y="12" width="44" height="40" rx="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M18 24h28M18 32h20M18 40h24" stroke="currentColor" stroke-width="2"/></svg>
+              <p>Selecciona técnicas y pulsa <b>Generar</b>.<br>Los prompts aparecerán aquí, listos para copiar o ejecutar.</p>
+            </div>
+            <div id="outList"></div>
+          </div>
+          <div id="outHistory" class="out-body" hidden></div>
+        </div>
+      </aside>
+    </div>
+
+    <div class="actionbar" id="actionbar">
+      <div class="ab-info"><b id="selCount">0</b> técnica(s) seleccionada(s) <span class="muted" id="selNames"></span></div>
+      <div class="ab-btns">
+        <button class="btn ghost" id="clearSel" type="button">Quitar selección</button>
+        <button class="btn" id="genSingles" type="button" disabled>Un prompt por técnica</button>
+        <button class="btn primary" id="genCombined" type="button" disabled title="Selecciona al menos 2 técnicas">Prompt combinado</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== 3 · ESTUDIO ===================== -->
+  <section class="view" id="view-studio" data-view="studio" hidden>
+    <div class="studio">
+      <div class="panel studio-left">
+        <h2>Ejecutar prompt</h2>
+        <label class="field">
+          <span>Prompt</span>
+          <select id="studioPick"><option value="">— Escribe o pega un prompt —</option></select>
+        </label>
+        <textarea id="studioPrompt" class="mono" rows="12" placeholder="Pega aquí un prompt o genera uno en el paso 2…"></textarea>
+        <p class="muted tiny" id="studioPromptInfo"></p>
+
+        <fieldset class="engines">
+          <legend>Motor de construcción</legend>
+          <label class="engine"><input type="radio" name="engine" value="local" checked>
+            <span><strong>Motor local</strong><small>Instantáneo y sin conexión. Aplica las técnicas del prompt con plantillas inteligentes.</small></span></label>
+          <label class="engine"><input type="radio" name="engine" value="ai">
+            <span><strong>IA real</strong><small>Claude u otro proveedor. Interpreta el prompt completo, texto libre incluido.</small></span></label>
+        </fieldset>
+
+        <div id="aiConfig" class="ai-config" hidden>
+          <label class="field"><span>Proveedor</span>
+            <select id="aiProvider"><option value="server" disabled>Clave del servidor (.env)</option><option value="claude">Claude (Anthropic)</option><option value="compat">Otro proveedor compatible</option></select></label>
+          <p class="muted tiny" id="cfgServer" hidden></p>
+          <div id="cfgClaude">
+            <div class="row2">
+              <label class="field"><span>Modelo</span><select id="aiModel"></select></label>
+              <label class="field"><span>Esfuerzo</span><select id="aiEffort"><option value="low">Bajo (rápido)</option><option value="medium">Medio</option><option value="high" selected>Alto</option></select></label>
+            </div>
+          </div>
+          <div id="cfgCompat" hidden>
+            <label class="field"><span>Servicio</span><select id="compatPreset"></select></label>
+            <label class="field"><span>URL base</span><input id="compatBase" type="url" placeholder="https://…/v1"></label>
+            <label class="field"><span>Modelo</span><input id="compatModel" type="text" placeholder="Nombre exacto del modelo en tu proveedor"></label>
+          </div>
+          <div id="cfgKey">
+            <label class="field"><span>Clave de API</span><input id="aiKey" type="password" autocomplete="off" placeholder="Pega tu clave (no se envía a ningún otro sitio)"></label>
+            <label class="check"><input type="checkbox" id="aiRemember"> Recordar la clave en este navegador</label>
+            <p class="muted tiny">La clave se usa solo para llamar al proveedor elegido desde tu navegador. Sin «recordar», se borra al cerrar la pestaña.</p>
+          </div>
+        </div>
+
+        <div class="run-row">
+          <button class="btn primary block lg" id="runBtn" type="button"><span aria-hidden="true">▶</span> Construir landing</button>
+          <button class="btn ghost" id="stopBtn" type="button" hidden>Detener</button>
+        </div>
+        <p class="status" id="runStatus" role="status"></p>
+      </div>
+
+      <div class="panel studio-right">
+        <div class="stage-bar">
+          <div class="seg" role="group" aria-label="Vista">
+            <button data-stab="live" id="liveTab" hidden><span class="live-dot" aria-hidden="true"></span>En vivo</button>
+            <button class="on" data-stab="preview">Vista</button>
+            <button data-stab="code">Código</button>
+            <button data-stab="report">Informe <span class="count" id="reportCount">0</span></button>
+          </div>
+          <div class="seg devices" role="group" aria-label="Dispositivo">
+            <button class="on" data-dev="desktop" title="Escritorio">▭</button>
+            <button data-dev="tablet" title="Tableta">▯</button>
+            <button data-dev="mobile" title="Móvil">▮</button>
+          </div>
+          <div class="stage-actions">
+            <button class="btn ghost sm" id="openTab" disabled>Abrir en pestaña</button>
+            <button class="btn ghost sm" id="dlHtml" disabled>Descargar HTML</button>
+            <button class="btn primary sm" id="saveBank" disabled>★ Guardar en el banco</button>
+          </div>
+        </div>
+        <div class="stage" id="stage">
+          <div class="stage-empty" id="stageEmpty">
+            <svg viewBox="0 0 120 80" aria-hidden="true"><rect x="2" y="2" width="116" height="76" rx="6" fill="none" stroke="currentColor" stroke-width="2"/><path d="M2 16h116" stroke="currentColor" stroke-width="2"/><rect x="14" y="28" width="50" height="8" rx="2" fill="currentColor" opacity=".5"/><rect x="14" y="42" width="36" height="5" rx="2" fill="currentColor" opacity=".3"/><rect x="14" y="56" width="22" height="9" rx="2" fill="currentColor" opacity=".7"/><circle cx="92" cy="48" r="16" fill="none" stroke="currentColor" stroke-width="2" opacity=".6"/></svg>
+            <p>La landing aparecerá aquí.</p>
+          </div>
+          <div class="frame-wrap" id="frameWrap" hidden><iframe id="frame" title="Vista previa de la landing" sandbox="allow-scripts allow-forms"></iframe></div>
+          <div class="live" id="liveView" hidden>
+            <div class="live-head">
+              <p class="live-state" id="liveState" role="status"></p>
+              <ol class="live-steps" id="liveSteps" aria-label="Pasos de la construcción"></ol>
+            </div>
+            <div class="live-split">
+              <div class="live-preview">
+                <span class="live-label">Así va la página</span>
+                <div class="live-screen">
+                  <iframe class="on" title="Construcción en vivo de la landing" sandbox="allow-scripts allow-forms"></iframe>
+                  <iframe title="Construcción en vivo de la landing (búfer)" sandbox="allow-scripts allow-forms" aria-hidden="true" tabindex="-1"></iframe>
+                </div>
+              </div>
+              <div class="live-codebox">
+                <span class="live-label">Código que escribe la IA</span>
+                <pre class="live-code mono" id="liveCode"></pre>
+              </div>
+            </div>
+          </div>
+          <pre class="code mono" id="codeView" hidden></pre>
+          <div class="report" id="reportView" hidden></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== 4 · BANCO ===================== -->
+  <section class="view" id="view-bank" data-view="bank" hidden>
+    <div class="panel-head plain">
+      <div>
+        <h2>Banco de landing pages</h2>
+        <p class="muted">Las mejores landings, cada una junto al prompt que la creó. Valóralas con estrellas y marca tus destacadas.</p>
+      </div>
+      <div class="head-actions">
+        <button class="btn ghost sm" id="bankExport">Exportar</button>
+        <label class="btn ghost sm file-btn">Importar<input type="file" id="bankImport" accept="application/json,.json" hidden></label>
+        <button class="btn ghost sm" id="bankRestore">Restaurar ejemplos</button>
+      </div>
+    </div>
+    <div class="bank-tools">
+      <label class="search"><span class="sr-only">Buscar</span><input type="search" id="bankSearch" placeholder="Buscar por marca, tema o texto del prompt…"></label>
+      <select id="bankTech" aria-label="Filtrar por técnica"><option value="">Todas las técnicas</option></select>
+      <select id="bankSort" aria-label="Ordenar">
+        <option value="best">Mejor valoradas</option>
+        <option value="new">Más recientes</option>
+        <option value="az">A → Z</option>
+      </select>
+      <label class="check"><input type="checkbox" id="bankFeatured"> Solo destacadas</label>
+    </div>
+    <div class="bank-grid" id="bankGrid"></div>
+    <div class="empty big" id="bankEmpty" hidden>
+      <p>Aún no hay landings aquí. Construye una en el <a href="#studio" data-go="studio">Estudio</a> y pulsa «Guardar en el banco».</p>
+    </div>
+  </section>
+
+  <!-- ===================== GUÍA ===================== -->
+  <section class="view" id="view-guide" data-view="guide" hidden>
+    <div class="guide" id="guide"></div>
+  </section>
+</main>
+
+<!-- Detalle del banco: landing a la izquierda, prompt a la derecha -->
+<div class="modal" id="detail" hidden role="dialog" aria-modal="true" aria-labelledby="detailTitle">
+  <div class="modal-box detail-box">
+    <header class="detail-head">
+      <div>
+        <h2 id="detailTitle"></h2>
+        <p class="muted tiny" id="detailMeta"></p>
+      </div>
+      <div class="detail-tools">
+        <div class="stars" id="detailStars" role="radiogroup" aria-label="Valoración"></div>
+        <button class="btn ghost sm" id="detailFeat">☆ Destacar</button>
+        <button class="icon-btn" id="detailClose" aria-label="Cerrar">✕</button>
+      </div>
+    </header>
+    <div class="detail-body">
+      <div class="detail-web">
+        <div class="seg devices" role="group" aria-label="Dispositivo">
+          <button class="on" data-ddev="desktop">Escritorio</button><button data-ddev="tablet">Tableta</button><button data-ddev="mobile">Móvil</button>
+        </div>
+        <div class="frame-wrap"><iframe id="detailFrame" title="Landing guardada" sandbox="allow-scripts allow-forms"></iframe></div>
+      </div>
+      <div class="detail-prompt">
+        <div class="dp-head"><h3>Prompt que la creó</h3><button class="btn ghost sm" id="detailCopy">Copiar</button></div>
+        <div class="chips" id="detailChips"></div>
+        <pre class="mono" id="detailPrompt"></pre>
+        <div class="dp-actions">
+          <button class="btn sm" id="detailRerun">▶ Re-ejecutar en el Estudio</button>
+          <button class="btn ghost sm" id="detailDl">Descargar HTML</button>
+          <button class="btn ghost sm" id="detailOpen">Abrir en pestaña</button>
+          <button class="btn danger sm" id="detailDel">Eliminar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Guardar en el banco -->
+<div class="modal" id="saveModal" hidden role="dialog" aria-modal="true" aria-labelledby="saveTitle">
+  <form class="modal-box small" id="saveForm">
+    <h2 id="saveTitle">Guardar en el banco</h2>
+    <label class="field"><span>Nombre</span><input id="saveName" required></label>
+    <div class="field"><span>Valoración</span><div class="stars big" id="saveStars" role="radiogroup" aria-label="Valoración"></div></div>
+    <label class="check"><input type="checkbox" id="saveFeat"> Marcar como destacada</label>
+    <div class="modal-actions">
+      <button type="button" class="btn ghost" data-close>Cancelar</button>
+      <button type="submit" class="btn primary">Guardar</button>
+    </div>
+  </form>
+</div>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<script src="js/data.js"></script>
+<script src="js/prompts.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/ai.js"></script>
+<script src="js/store.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
