@@ -108,7 +108,9 @@
     </div>
 
     <div class="actionbar" id="actionbar">
-      <div class="ab-info"><b id="selCount">0</b> técnica(s) seleccionada(s) <span class="muted" id="selNames"></span></div>
+      <div class="ab-info"><b id="selCount">0</b> técnica(s) seleccionada(s) <span class="muted" id="selNames"></span>
+        <label class="ai-switch" id="aiPromptWrap" hidden title="La IA redacta el prompt a partir de tu proyecto y de las técnicas elegidas">
+          <input type="checkbox" id="aiPrompt"> <span>✨ Redactar con IA</span></label></div>
       <div class="ab-btns">
         <button class="btn ghost" id="clearSel" type="button">Quitar selección</button>
         <button class="btn" id="genSingles" type="button" disabled>Un prompt por técnica</button>

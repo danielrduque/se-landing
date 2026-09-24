@@ -8,6 +8,7 @@ window.LF = window.LF || {};
 LF.store = (function () {
   const K = { brief: 'lf.brief', history: 'lf.history', bank: 'lf.bank', settings: 'lf.settings', seeded: 'lf.seeded.v1', key: 'lf.apikey' };
   let memory = {};
+  let bank = null, remote = false; // remote = el banco también se guarda en el servidor (carpeta bank/)
 
   function get(k, fallback) {
     try { const v = localStorage.getItem(k); return v == null ? fallback : JSON.parse(v); }
@@ -18,6 +19,15 @@ LF.store = (function () {
     catch (e) { memory[k] = v; return false; }
   }
   const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+
+  function loadBank() { if (!bank) bank = get(K.bank, []); return bank; }
+  function sync(method, item) {
+    if (!remote) return;
+    fetch('api/bank/' + encodeURIComponent(item.id), {
+      method, headers: { 'content-type': 'application/json' }, body: method === 'PUT' ? JSON.stringify(item) : undefined
+    }).then(r => { if (!r.ok) console.warn('El servidor no guardó la landing', item.id, r.status); })
+      .catch(e => console.warn('No se pudo guardar en el servidor', e));
+  }
 
   return {
     uid,
@@ -40,21 +50,32 @@ LF.store = (function () {
     removeHistory(id) { set(K.history, get(K.history, []).filter(x => x.id !== id)); },
     clearHistory: () => set(K.history, []),
 
-    getBank: () => get(K.bank, []),
+    getBank: () => loadBank().slice(),
     addBank(item) {
-      const b = get(K.bank, []);
+      const b = loadBank();
       item.id = item.id || uid(); item.createdAt = item.createdAt || Date.now();
       b.unshift(item);
-      if (!set(K.bank, b)) return { item, warn: 'El almacenamiento del navegador está lleno: la landing solo durará esta sesión. Exporta el banco para no perderla.' };
+      const ok = set(K.bank, b);
+      sync('PUT', item);
+      if (!ok && !remote) return { item, warn: 'El almacenamiento del navegador está lleno: la landing solo durará esta sesión. Exporta el banco para no perderla.' };
       return { item };
     },
     updateBank(id, patch) {
-      const b = get(K.bank, []);
-      const i = b.findIndex(x => x.id === id);
-      if (i >= 0) { b[i] = Object.assign(b[i], patch); set(K.bank, b); return b[i]; }
+      const b = loadBank();
+      const it = b.find(x => x.id === id);
+      if (it) { Object.assign(it, patch); set(K.bank, b); sync('PUT', it); return it; }
     },
-    removeBank(id) { set(K.bank, get(K.bank, []).filter(x => x.id !== id)); },
-    replaceBank: arr => set(K.bank, arr),
+    removeBank(id) { bank = loadBank().filter(x => x.id !== id); set(K.bank, bank); sync('DELETE', { id }); },
+    replaceBank(arr) {
+      const keep = new Set(arr.map(x => x.id));
+      loadBank().filter(x => !keep.has(x.id)).forEach(x => sync('DELETE', x));
+      bank = arr.slice(); set(K.bank, bank);
+      bank.forEach(x => sync('PUT', x));
+    },
+    /* Activa el banco del servidor: a partir de aquí cada cambio también se guarda en la carpeta bank/ */
+    useServerBank(items) { bank = items.slice().sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)); remote = true; set(K.bank, bank); },
+    pushBank: item => sync('PUT', item),
+    isRemoteBank: () => remote,
 
     isSeeded: () => !!get(K.seeded, false),
     markSeeded: () => set(K.seeded, true),

@@ -255,7 +255,7 @@
       return;
     }
     if (e.target.closest('[data-why]')) { const th = $('.theory', card); th.hidden = !th.hidden; return; }
-    if (e.target.closest('[data-gen]')) { if (!needTema()) return; addResult(P.single(id, state.brief, state.opts[id])); }
+    if (e.target.closest('[data-gen]')) { if (!needTema()) return; produce([P.single(id, state.brief, state.opts[id])]); }
   });
   $('#techGroups').addEventListener('input', e => {
     const card = e.target.closest('.tcard'); if (!card || !e.target.dataset.o) return;
@@ -271,6 +271,13 @@
     toast(`Combinación «${p.name}» seleccionada`);
   });
   $('#clearSel').addEventListener('click', () => { state.selected.clear(); updateSelection(); });
+  function refreshAiSwitch() {
+    const ok = aiReady();
+    $('#aiPromptWrap').hidden = !ok;
+    $('#aiPrompt').checked = ok && state.settings.aiPrompt !== false;
+  }
+  $('#aiPrompt').addEventListener('change', e => { state.settings.aiPrompt = e.target.checked; S.setSettings(state.settings); });
+  const useAiPrompt = () => aiReady() && $('#aiPrompt').checked;
 
   function needTema() {
     if (state.brief.tema.trim()) return true;
@@ -281,14 +288,83 @@
   $('#genSingles').addEventListener('click', () => {
     if (!needTema()) return;
     const ids = D.techniques.map(t => t.id).filter(i => state.selected.has(i));
+    if (useAiPrompt()) return produce(ids.map(id => P.single(id, state.brief, state.opts[id])));
     ids.slice().reverse().forEach(id => addResult(P.single(id, state.brief, state.opts[id]), true));
     toast(`${ids.length} prompt(s) generado(s), uno por técnica`);
   });
   $('#genCombined').addEventListener('click', () => {
     if (!needTema()) return;
     if (state.selected.size < 2) return toast('Selecciona al menos 2 técnicas para combinarlas.', true);
-    addResult(P.combined(Array.from(state.selected), state.brief, state.opts));
+    produce([P.combined(Array.from(state.selected), state.brief, state.opts)]);
   });
+
+  /* ---------- prompts redactados por la IA ---------- */
+  const WRITER_SYSTEM = [
+    'Eres un experto en prompt engineering para diseñar landing pages con IA, formado en el tratado «8 técnicas avanzadas de diseño de landing pages con IA».',
+    'Tu tarea: escribir UN prompt final, en español, que otra IA usará para construir la landing page completa en un único archivo HTML.',
+    'Recibirás el brief del proyecto, las técnicas elegidas (con su fundamento) y un borrador hecho con plantillas.',
+    'Reglas:',
+    '- Mejora el borrador: hazlo específico para este negocio y su público, con decisiones concretas (paleta con códigos HEX, tipografías, estructura de secciones con su titular y copy principal, micro-copy de los botones) en lugar de instrucciones genéricas.',
+    '- Conserva los encabezados en markdown (# ROL, # OBJETIVO, # CONTEXTO DEL PROYECTO, etc.), las líneas del contexto con el formato «- Campo: valor» y las etiquetas de técnica tal cual ([T1], [T2]…): la app las usa para reconocer el prompt.',
+    '- Aplica fielmente cada técnica elegida según el tratado y no añadas técnicas que no se eligieron.',
+    '- No inventes datos, cifras, premios ni testimonios que no estén en el brief: usa [dato por confirmar].',
+    '- Si hay prompts de imagen o vídeo, escríbelos en inglés dentro de un bloque ```text para que no se confundan con instrucciones.',
+    '- Responde solo con el prompt final, sin introducción, sin explicación y sin envolverlo en un bloque de código.'
+  ].join('\n');
+
+  function writerMessage(p) {
+    const techs = p.techniques.map(id => { const t = D.tech(id); return `- [T${t.num}] ${t.name}: ${t.tagline} ${t.theory}`; }).join('\n');
+    return `Técnicas elegidas (${p.kind === 'combined' ? 'prompt combinado: intégralas en un solo prompt, ordenadas por fases Descubrir → Definir → Entregar' : 'prompt de una sola técnica'}):\n${techs}\n\n`
+      + `Borrador generado por plantilla (contiene el brief completo; mejóralo siguiendo las reglas):\n<<<\n${p.text}\n>>>`;
+  }
+
+  // Genera los prompts: con plantilla al instante o, si «Redactar con IA» está activo, escritos por la IA uno tras otro
+  async function produce(list) {
+    if (!useAiPrompt()) { list.forEach(p => addResult(p)); return; }
+    if (state.writing) return toast('La IA todavía está redactando el prompt anterior.', true);
+    state.writing = true;
+    ['genSingles', 'genCombined'].forEach(id => { $('#' + id).disabled = true; });
+    let ok = 0;
+    for (const p of list) { if (await writeWithAI(p)) ok++; }
+    state.writing = false;
+    updateSelection();
+    if (list.length > 1) toast(`${ok} de ${list.length} prompt(s) redactados por la IA`);
+  }
+
+  async function writeWithAI(p) {
+    const draft = p.text, t0 = Date.now();
+    p.ai = true; p.writing = true; p.text = '';
+    addResult(p, true);
+    const card = () => $(`.pcard[data-pid="${p.id}"]`);
+    const stat = msg => { const c = card(); if (c) $('.stat', c).textContent = msg; };
+    let acc = '', last = 0;
+    stat('✨ Conectando con la IA…');
+    try {
+      await A.run(aiCfg(), writerMessage(Object.assign({}, p, { text: draft })), chunk => {
+        acc += chunk;
+        const now = Date.now();
+        if (now - last > 250) {
+          last = now;
+          const c = card(); if (!c) return;
+          const ta = $('textarea', c); ta.value = acc; ta.scrollTop = ta.scrollHeight;
+          stat(`✨ La IA está redactando… ${acc.length.toLocaleString('es')} car. · ${Math.round((now - t0) / 1000)} s`);
+        }
+      }, null, msg => stat('✨ ' + msg), { system: WRITER_SYSTEM, effort: 'low', extra: { reasoning_effort: 'low' } });
+      const text = acc.trim().replace(/^```(?:markdown|md)?\s*\n([\s\S]*?)\n```$/i, '$1').trim();
+      if (text.length < 200) throw new Error('la respuesta de la IA vino vacía o incompleta');
+      p.text = text; p.writing = false;
+      S.updateHistory(p.id, { text: p.text, ai: true });
+      renderResults(); renderHistory();
+      toast('Prompt redactado por la IA');
+      return true;
+    } catch (err) {
+      p.text = draft; p.writing = false; p.ai = false;
+      S.updateHistory(p.id, { text: p.text, ai: false });
+      renderResults(); renderHistory();
+      toast('La IA no pudo redactar el prompt, se dejó el de plantilla: ' + (err.message || err), true);
+      return false;
+    }
+  }
 
   /* ---------- tarjetas de prompts ---------- */
   function addResult(p, quiet) {
@@ -302,12 +378,12 @@
   }
   function promptCard(p) {
     const words = p.text.split(/\s+/).length;
-    return `<article class="pcard" data-pid="${p.id}">
-      <div class="pcard-head"><div><h4>${esc(p.title)}</h4><div class="sub">${p.kind === 'combined' ? 'Prompt combinado' : 'Prompt individual'} · ${esc(p.brief.marca || p.brief.tema)}</div></div>
+    return `<article class="pcard${p.writing ? ' writing' : ''}" data-pid="${p.id}">
+      <div class="pcard-head"><div><h4>${esc(p.title)}${p.ai ? '<span class="ai-badge">✨ IA</span>' : ''}</h4><div class="sub">${p.kind === 'combined' ? 'Prompt combinado' : 'Prompt individual'} · ${esc(p.brief.marca || p.brief.tema)}</div></div>
         <div class="score" style="--v:${p.score}" title="Fuerza estimada del prompt"><span>${p.score}</span></div></div>
-      <textarea spellcheck="false" aria-label="Texto del prompt">${esc(p.text)}</textarea>
+      <textarea spellcheck="false" aria-label="Texto del prompt" ${p.writing ? 'readonly' : ''}>${esc(p.text)}</textarea>
       <div class="pcard-foot">
-        <button class="btn primary sm" data-act="run">▶ Ejecutar</button>
+        <button class="btn primary sm" data-act="run" ${p.writing ? 'disabled' : ''}>▶ Ejecutar</button>
         <button class="btn sm" data-act="copy">Copiar</button>
         <button class="btn ghost sm" data-act="md">.md</button>
         <button class="btn ghost sm" data-act="close" title="Quitar de la lista">✕</button>
@@ -400,6 +476,7 @@
     toggleAiFields(s.provider);
   }
   function toggleAiFields(provider) {
+    if ($('#aiPromptWrap')) setTimeout(refreshAiSwitch);
     $('#cfgClaude').hidden = provider !== 'claude';
     $('#cfgCompat').hidden = provider !== 'compat';
     $('#cfgServer').hidden = provider !== 'server';
@@ -477,6 +554,18 @@
   }
 
   const wait = ms => new Promise(r => setTimeout(r, ms));
+
+  /* Configuración de la IA elegida (servidor con .env, Claude o proveedor compatible) */
+  function aiCfg() {
+    const s = state.settings;
+    if (s.provider === 'server' && state.server) return { provider: 'compat', key: '', base: 'api', model: state.server.model };
+    if (s.provider === 'claude') return { provider: 'claude', key: S.getKey(), model: s.model, effort: s.effort };
+    return { provider: 'compat', key: S.getKey(), base: s.base, model: s.compatModel };
+  }
+  function aiReady() {
+    const c = aiCfg();
+    return c.provider === 'claude' ? !!c.key : !!(c.base && c.model);
+  }
 
   /* ======================= construcción en vivo ======================= */
   /* Muestra, mientras la IA escribe: los pasos detectados en el código, la página a medio construir
@@ -626,9 +715,7 @@
     }
 
     saveAi();
-    const s = state.settings;
-    const cfg = s.provider === 'server' ? { provider: 'compat', key: '', base: 'api', model: state.server.model }
-      : s.provider === 'claude' ? { provider: 'claude', key: S.getKey(), model: s.model, effort: s.effort } : { provider: 'compat', key: S.getKey(), base: s.base, model: s.compatModel };
+    const cfg = aiCfg();
     const modelName = cfg.model || 'el proveedor';
     const ctrl = new AbortController(); state.abort = ctrl;
     $('#stopBtn').hidden = false;
@@ -706,6 +793,25 @@
   $$('[data-close]').forEach(b => b.addEventListener('click', () => { b.closest('.modal').hidden = true; }));
 
   /* ======================= 4 · BANCO ======================= */
+  /* Si la app corre con server.py, el banco vive en la carpeta bank/ del proyecto (y viaja con git).
+     Las landings que solo estaban en este navegador se suben al servidor para no perderlas. */
+  async function initBank() {
+    let server = null;
+    try { const r = await fetch('api/bank', { cache: 'no-store' }); if (r.ok) server = await r.json(); } catch (e) { /* sin servidor */ }
+    try {
+      if (Array.isArray(server)) {
+        const onServer = new Set(server.map(x => x.id));
+        const examples = new Set(server.map(x => x.exampleId).filter(Boolean));
+        const upload = S.getBank().filter(x => !onServer.has(x.id) && !(x.exampleId && examples.has(x.exampleId)));
+        S.useServerBank(server.concat(upload));
+        upload.forEach(S.pushBank);
+        if (!S.getBank().some(x => x.exampleId)) seedBank();
+        if (upload.length) toast(`${upload.length} landing(s) de este navegador guardadas en el banco del proyecto`);
+      } else if (!S.isSeeded()) seedBank();
+    } catch (e) { console.error(e); }
+    renderBank();
+  }
+
   function seedBank(force) {
     const bank = S.getBank();
     const have = new Set(bank.map(x => x.exampleId).filter(Boolean));
@@ -895,6 +1001,6 @@
   renderAiConfig();
   detectServer();
   renderGuide();
-  if (!S.isSeeded()) { try { seedBank(); } catch (e) { console.error(e); } }
+  initBank();
   go(location.hash.slice(1) || 'brief', false);
 })();

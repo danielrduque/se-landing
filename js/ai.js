@@ -75,7 +75,7 @@ LF.ai = (function () {
   }
 
   /* ---------- Claude ---------- */
-  async function runClaude(cfg, prompt, onText, signal) {
+  async function runClaude(cfg, prompt, onText, signal, opts = {}) {
     const model = cfg.model || 'claude-opus-5';
     const headers = {
       'content-type': 'application/json',
@@ -87,12 +87,13 @@ LF.ai = (function () {
       model,
       max_tokens: model.startsWith('claude-haiku') ? 32000 : 64000,
       stream: true,
-      system: SYSTEM,
+      system: opts.system || SYSTEM,
       messages: [{ role: 'user', content: prompt }]
     };
     if (!model.startsWith('claude-haiku')) {
       body.thinking = { type: 'adaptive' };
-      if (cfg.effort && cfg.effort !== 'high') body.output_config = { effort: cfg.effort };
+      const effort = opts.effort || cfg.effort;
+      if (effort && effort !== 'high') body.output_config = { effort };
     }
     if (model === 'claude-opus-5') {
       // Si el filtro de seguridad rechaza la petición, la API reintenta con el modelo de respaldo recomendado.
@@ -113,7 +114,7 @@ LF.ai = (function () {
   }
 
   /* ---------- Compatible /chat/completions ---------- */
-  async function runCompat(cfg, prompt, onText, signal, onStatus) {
+  async function runCompat(cfg, prompt, onText, signal, onStatus, opts = {}) {
     const base = String(cfg.base || '').replace(/\/+$/, '');
     if (!base) throw new Error('Falta la URL base del proveedor.');
     if (!cfg.model) throw new Error('Escribe el nombre del modelo de tu proveedor.');
@@ -121,7 +122,7 @@ LF.ai = (function () {
     if (cfg.key) headers.authorization = 'Bearer ' + cfg.key;
     const res = await fetch(base + '/chat/completions', {
       method: 'POST', headers, signal,
-      body: JSON.stringify({ model: cfg.model, stream: true, messages: [{ role: 'system', content: SYSTEM }, { role: 'user', content: prompt }] })
+      body: JSON.stringify(Object.assign({ model: cfg.model, stream: true, messages: [{ role: 'system', content: opts.system || SYSTEM }, { role: 'user', content: prompt }] }, opts.extra || {}))
     });
     if (!res.ok) throw await httpError(res);
     let stop = null, model = cfg.model;
@@ -136,12 +137,13 @@ LF.ai = (function () {
     return { stop, usage: { model } };
   }
 
-  function run(cfg, prompt, onText, signal, onStatus) {
+  /* opts (opcional): { system, effort (Claude), extra (campos extra para /chat/completions) } */
+  function run(cfg, prompt, onText, signal, onStatus, opts) {
     if (cfg.provider === 'claude') {
       if (!cfg.key) return Promise.reject(new Error('Pega tu clave de API de Anthropic en la configuración.'));
-      return runClaude(cfg, prompt, onText, signal);
+      return runClaude(cfg, prompt, onText, signal, opts);
     }
-    return runCompat(cfg, prompt, onText, signal, onStatus);
+    return runCompat(cfg, prompt, onText, signal, onStatus, opts);
   }
 
   /* Extrae el documento HTML de la respuesta (tolera ```html ... ``` o texto alrededor) */

@@ -198,6 +198,12 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .actionbar .btn { background: transparent; color: var(--bg); border-color: color-mix(in srgb, var(--bg) 30%, transparent); }
 .actionbar .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .ab-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+.ai-switch { display: inline-flex; align-items: center; gap: 6px; margin-left: 12px; padding: 4px 10px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--bg) 30%, transparent); font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.ai-switch:has(input:checked) { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.ai-switch input { accent-color: var(--on-accent); margin: 0; }
+.pcard.writing textarea { background: color-mix(in srgb, var(--accent-soft) 45%, var(--bg)); }
+.pcard.writing .stat { color: var(--accent); font-weight: 600; }
+.pcard .ai-badge { display: inline-block; margin-left: 6px; padding: 1px 7px; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: 11px; font-weight: 700; vertical-align: 2px; }
 .ab-info b { font-family: var(--fd); font-size: 1.2rem; }
 
 /* ---------- Salida de prompts ---------- */
@@ -303,7 +309,7 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--a
 .bcard { display: grid; grid-template-columns: 1.15fr 1fr; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; box-shadow: var(--shadow); transition: transform .15s, border-color .15s; }
 .bcard:hover { transform: translateY(-2px); border-color: var(--text); }
 .bthumb { position: relative; aspect-ratio: 4 / 3.4; overflow: hidden; background: var(--surface-2); cursor: zoom-in; border-right: 1px solid var(--line); }
-.bthumb iframe { position: absolute; top: 0; left: 0; width: 1280px; height: 2600px; border: 0; transform-origin: 0 0; pointer-events: none; }
+.bthumb iframe { position: absolute; top: 0; left: 0; width: 1280px; height: 1088px; /* 1280 × 4/3.4: la miniatura muestra una pantalla real, así los héroes de 100vh se ven completos */ border: 0; transform-origin: 0 0; pointer-events: none; }
 .bthumb .ribbon { position: absolute; top: 10px; left: 10px; z-index: 2; background: var(--accent); color: var(--on-accent); font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 99px; }
 .binfo { padding: 16px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .binfo h3 { font-size: 1.05rem; }

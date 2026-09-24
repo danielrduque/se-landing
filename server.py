@@ -10,6 +10,7 @@ Solo usa la biblioteca estándar de Python: no hay que instalar nada.
 import http.server
 import json
 import os
+import re
 import sys
 import urllib.error
 import urllib.request
@@ -17,7 +18,7 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
-PORT = int(os.environ.get("PORT", "8765"))
+PORT = int(sys.argv[1]) if len(sys.argv) > 1 else int(os.environ.get("PORT", "8765"))  # python server.py [puerto]
 
 
 def load_env(path):
@@ -46,6 +47,10 @@ RETRY_CODES = {403, 404, 429, 500, 503}
 EXHAUSTED = {}
 RECHECK_SECONDS = 3600
 BAD_KEYS = set()  # claves rechazadas por Google (inválidas o revocadas)
+# Banco de landings compartido: un archivo JSON por landing en la carpeta bank/ (se sube a git con el proyecto)
+BANK_DIR = ROOT / "bank"
+BANK_ID = re.compile(r"^[A-Za-z0-9_-]{1,40}$")
+MAX_ITEM_BYTES = 8 * 1024 * 1024
 
 
 def summary(results):
@@ -88,10 +93,56 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if any(part.startswith(".") for part in path.split("/")) or path.endswith(".py"):
             self.send_error(404)
             return
+        if path == "/api/bank":
+            items = []
+            for f in BANK_DIR.glob("*.json"):
+                try:
+                    items.append(json.loads(f.read_text(encoding="utf-8")))
+                except (OSError, json.JSONDecodeError):
+                    print(f"  aviso: no se pudo leer {f.name}", flush=True)
+            items.sort(key=lambda x: x.get("createdAt", 0), reverse=True)
+            self.send_json(200, items)
+            return
         if path == "/api/config":
             self.send_json(200, {"ready": bool(API_KEYS), "model": MODEL, "keys": len(API_KEYS)})
             return
         super().do_GET()
+
+    def bank_id(self):
+        """Devuelve el id de /api/bank/<id> si es válido; si no, responde el error y devuelve None."""
+        m = re.fullmatch(r"/api/bank/([^/?]+)", self.path.split("?", 1)[0])
+        if not m or not BANK_ID.match(m.group(1)):
+            self.send_json(404, {"error": {"message": "Landing no encontrada"}})
+            return None
+        return m.group(1)
+
+    def do_PUT(self):
+        item_id = self.bank_id()
+        if not item_id:
+            return
+        length = int(self.headers.get("Content-Length") or 0)
+        if length > MAX_ITEM_BYTES:
+            self.send_json(413, {"error": {"message": "La landing es demasiado grande"}})
+            return
+        try:
+            item = json.loads(self.rfile.read(length) or b"{}")
+        except json.JSONDecodeError:
+            self.send_json(400, {"error": {"message": "JSON inválido"}})
+            return
+        if not isinstance(item, dict) or not isinstance(item.get("html"), str) or not isinstance(item.get("prompt"), str):
+            self.send_json(400, {"error": {"message": "Faltan el HTML o el prompt de la landing"}})
+            return
+        item["id"] = item_id
+        BANK_DIR.mkdir(exist_ok=True)
+        (BANK_DIR / f"{item_id}.json").write_text(json.dumps(item, ensure_ascii=False, indent=1), encoding="utf-8")
+        self.send_json(200, {"ok": True})
+
+    def do_DELETE(self):
+        item_id = self.bank_id()
+        if not item_id:
+            return
+        (BANK_DIR / f"{item_id}.json").unlink(missing_ok=True)
+        self.send_json(200, {"ok": True})
 
     def do_POST(self):
         if self.path != "/api/chat/completions":

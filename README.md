@@ -26,7 +26,7 @@ No necesita instalación ni internet para funcionar (solo para las fuentes tipog
 
 ### Con IA real y la clave en `.env` (recomendado)
 
-1. Copia `.env.example` como `.env` y pega tu clave en `AI_API_KEY` (Gemini gratis: https://aistudio.google.com/apikey).
+1. Copia `.env.example` como `.env` y pega tu clave en `AI_API_KEYS` (puedes poner varias separadas por comas: si una falla se usa la siguiente). Gemini gratis: https://aistudio.google.com/apikey.
 2. Dentro de la carpeta `LandingForge`, ejecuta `python server.py` (no hay que instalar nada).
 3. Entra a `http://localhost:8765`. En el Estudio, «IA real» queda seleccionada con la clave del servidor: no hay que pegar nada.
 
@@ -48,6 +48,7 @@ Escribe el **tema** (único campo obligatorio) y los datos básicos: marca, sect
 ### 2 · Técnicas y prompts
 - Marca una o varias técnicas. Cada tarjeta tiene **opciones propias** (semillas, marco de copy, perfiles del crítico, herramienta de imagen, etc.) y un botón **«¿Por qué funciona?»**.
 - **Generar solo esta** → un prompt de esa técnica.
+- **✨ Redactar con IA** (activo cuando hay IA configurada): la IA escribe el prompt a partir de tu proyecto, las técnicas elegidas y su fundamento del tratado; se ve redactándose en vivo y lleva la etiqueta «✨ IA». Sin IA, los prompts se arman al instante con plantillas.
 - **Un prompt por técnica** → genera un prompt independiente por cada técnica marcada.
 - **Prompt combinado** (2 o más técnicas) → un único prompt que ordena las técnicas por fases (Descubrir → Definir → Entregar), añade **sinergias entre técnicas**, **restricciones consolidadas**, **entregables** y un **checklist de calidad**.
 - Combinaciones rápidas: *Máxima conversión*, *Disruptivo visual*, *Auténtico anti-IA* y *Tratado completo*.
@@ -68,6 +69,7 @@ La vista previa tiene modos **escritorio / tableta / móvil**, pestañas **Vista
 - Valoración con **estrellas**, marca de **destacada**, **búsqueda**, **filtro por técnica** y orden por **mejor valoradas**.
 - **Re-ejecutar** un prompt del banco, **descargar**, **eliminar**, **exportar/importar** el banco en JSON y **restaurar ejemplos**.
 - Viene precargado con 6 landings de ejemplo.
+- Con `server.py`, el banco se guarda en la carpeta **`bank/`** del proyecto (un archivo JSON por landing, con su HTML y su prompt): no se pierde al borrar el navegador y viaja con el repositorio. Sin servidor, se guarda solo en el navegador.
 
 ---
 
@@ -121,7 +123,7 @@ LandingForge/
 Tecnologías: HTML5, CSS3 y JavaScript sin frameworks ni dependencias (funciona con doble clic, sin servidor).
 
 ## Privacidad y seguridad
-- Todo se guarda en el `localStorage` de tu navegador; nada se envía a ningún servidor salvo al proveedor de IA que tú elijas en el modo «IA real».
+- El brief y el historial se guardan en el `localStorage` de tu navegador; el banco, además, en la carpeta `bank/` cuando usas `server.py`. Nada sale de tu computador salvo lo que se envía al proveedor de IA en el modo «IA real».
 - La clave de API se guarda solo durante la sesión, salvo que marques «Recordar».
 - Las landings se muestran dentro de un `iframe` aislado (`sandbox`), para que el código generado no pueda acceder a la app.
 - Los testimonios del motor local son de ejemplo y están marcados como tales: reemplázalos por testimonios reales antes de publicar.
