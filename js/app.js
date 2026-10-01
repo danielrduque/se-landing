@@ -93,7 +93,7 @@
     { legend: 'Lo esencial', fields: [
       { k: 'tema', label: 'Tema de la landing', req: true, full: true, ph: 'p. ej. Plataforma de clases de yoga online', hint: '¿Qué vas a promocionar?' },
       { k: 'marca', label: 'Nombre de la marca', ph: 'p. ej. Prana Studio' },
-      { k: 'industria', label: 'Sector', type: 'select', options: D.industries.map(x => [x, x]) },
+      { k: 'industria', label: 'Sector', type: 'select', hint: 'Si lo dejas en «detectar», se deduce del tema', options: [['', 'Detectar del tema (recomendado)']].concat(D.industries.map(x => [x, x])) },
       { k: 'objetivo', label: 'Objetivo de conversión', type: 'select', options: Object.keys(D.goals).map(k => [k, D.goals[k].label]) },
       { k: 'cta', label: 'Texto del botón principal', ph: '', hint: 'Opcional' }
     ] },
@@ -167,7 +167,7 @@
     saveBrief(); renderBrief();
     state.selected = new Set(ex.techniques);
     D.techniques.forEach(t => { state.opts[t.id] = Object.assign(D.defaultOpts(t.id), (ex.opts || {})[t.id] || {}); });
-    renderTechniques();
+    renderTechniques(); renderSeedPanel();
     e.target.value = '';
     toast(`Ejemplo «${ex.brief.marca}» cargado con ${ex.techniques.length} técnicas sugeridas`);
   });
@@ -183,6 +183,7 @@
 
   /* ======================= 2 · TÉCNICAS ======================= */
   function optField(t, op) {
+    if (op.type === 'hidden') return '';
     const v = state.opts[t.id][op.key];
     const id = `o_${t.id}_${op.key}`;
     const lab = `<span><label for="${id}">${op.label}</label>${op.key === 'seeds' ? '<button type="button" class="linkish" data-random-seed>Aleatoria</button>' : ''}</span>`;
@@ -225,6 +226,121 @@
     $$('.tcard').forEach(c => { const on = state.selected.has(c.dataset.t); c.classList.toggle('on', on); $('.tsel input', c).checked = on; });
   }
 
+
+  /* ---------- semilla del diseño (estilo Minecraft) ---------- */
+  const loadedFonts = new Set();
+  function loadFont(url) {
+    if (!url || loadedFonts.has(url)) return;
+    loadedFonts.add(url);
+    const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = 'https://fonts.googleapis.com/css2?family=' + url + '&display=swap';
+    document.head.appendChild(l);
+  }
+  function swatches(p) { return [p.bg, p.surface, p.text, p.primary, p.accent, p.accent2].map(c => `<i style="background:${c}" title="${c}"></i>`).join(''); }
+  function paintSeedChips() {
+    const box = $('[data-chips="seeds"]'); if (!box) return;
+    $$('.chip', box).forEach(c => { const on = state.opts.seed.seeds.includes(c.dataset.v); c.classList.toggle('on', on); c.setAttribute('aria-pressed', on); });
+  }
+  const seedOpts = () => LF.seed.optsFrom(state.opts.seed, state.brief);
+  function renderSeedPanel() {
+    const v = state.opts.seed.seed;
+    $('#seedInput').value = v || '';
+    const box = $('#seedDna');
+    const dna = v ? LF.seed.generate(v, seedOpts()) : null;
+    $('#twistSel').value = state.opts.seed.twist || '';
+    const fo = state.opts.seed.fonts || {};
+    $('#fontD').value = fo.display || ''; $('#fontB').value = fo.body || '';
+    $$('#wildSeg input').forEach(i => { i.checked = i.value === String(state.opts.seed.wild == null ? '' : state.opts.seed.wild); });
+    if (!dna) { box.innerHTML = ''; return; }
+    loadFont(dna.fonts.url); loadFont(dna.fonts.accentUrl);
+    const p = dna.palette;
+    syncColorInputs(p);
+    box.innerHTML = `<div class="dna-card"><div class="dna-title">${esc(dna.world)} · ${esc(dna.title)}</div>
+      <div class="dna-sw">${swatches(p)}</div>
+      <div class="dna-specimen" style="font-family:${dna.fonts.fd};${dna.upper ? 'text-transform:uppercase;' : ''}${dna.italic ? 'font-style:italic;' : ''}">Así suena esta marca<small style="font-family:${dna.fonts.fb}">${esc(dna.fonts.display)} + ${esc(dna.fonts.body)} · ${esc(dna.typeScale)}</small></div>
+      <ul class="dna-list">
+        <li><b>Paleta:</b> ${esc(p.source)}, ${dna.dark ? 'oscuro' : 'claro'}</li><li><b>Variante:</b> ${esc(dna.twistName || 'ninguna')}</li><li><b>Hero:</b> ${esc(dna.heroText)}</li>
+        <li><b>Beneficios:</b> ${esc(dna.benefitsText)}</li><li><b>Forma:</b> ${esc(dna.shape)}</li>
+        <li><b>Textura:</b> ${esc(dna.texture)}</li><li><b>Movimiento:</b> ${esc(dna.motion)}</li>
+        <li><b>Imagen:</b> ${esc(dna.imageTreatment)}</li><li><b>Densidad:</b> ${esc(dna.density)}</li>
+        <li><b>Locura:</b> ${dna.wild}/3 · ${esc(dna.wildName)}</li><li><b>Fondo:</b> ${esc(dna.patternText)}</li><li><b>Bordes:</b> ${esc(dna.edgeText)}</li>
+        <li><b>Tarjetas:</b> ${esc(dna.cardText)}</li><li><b>Titular:</b> ${esc(dna.headlineText)}</li><li><b>Navegación:</b> ${esc(dna.navText)}</li>
+        <li><b>Extras:</b> ${[dna.marquee ? 'cinta marquesina' : '', dna.decorN ? dna.decorN + ' formas sueltas' : '', dna.shuffle ? 'orden de bloques barajado' : '', dna.tint ? 'secciones teñidas' : ''].filter(Boolean).join(' · ') || 'ninguno'}</li><li><b>Fuente de acento:</b> ${esc(dna.fonts.accent)}</li><li><b>Botón:</b> ${esc(dna.button)}</li>
+      </ul></div>`;
+  }
+  function setSeed(v) {
+    v = String(v || '').trim();
+    state.opts.seed.seed = v;
+    if (v) {
+      const dna = LF.seed.generate(v, seedOpts());
+      state.opts.seed.seeds = dna.styles.slice();
+      state.selected.add('seed');
+      updateSelection();
+      toast('Semilla «' + v + '»: ' + dna.title);
+    }
+    paintSeedChips(); renderSeedPanel();
+  }
+  function renderSeedGrid(fresh) {
+    const items = [];
+    for (let i = 0; i < 8; i++) {
+      const sd = LF.seed.randomSeed(), dna = LF.seed.generate(sd, { wild: state.opts.seed.wild, twist: state.opts.seed.twist });
+      loadFont(dna.fonts.url);
+      items.push(`<button type="button" class="seed-tile" data-seed="${sd}"><div class="dna-sw">${swatches(dna.palette)}</div><b style="font-family:${dna.fonts.fd}">${sd}</b><span>${esc(dna.title)}</span><span>${dna.wildName} · ${esc(dna.cardText.split(' (')[0])} · ${esc(dna.heroText.split(':')[0].split(' (')[0].slice(0, 28))}</span></button>`);
+    }
+    $('#seedGrid').innerHTML = items.join('');
+  }
+  /* ---------- personalizar: variante, tipografías y colores ---------- */
+  const COLOR_KEYS = [['bg', 'Fondo'], ['text', 'Texto'], ['primary', 'Primario'], ['accent', 'Acento'], ['accent2', 'Acento 2']];
+  const cat = LF.seed.catalog();
+  $('#twistSel').innerHTML = '<option value="">Que decida la semilla</option><option value="none">Ninguna (estilo puro)</option>' + LF.seed.TWISTS.map(t => `<option value="${t.id}">${esc(t.name)} · ${esc(t.traits)}</option>`).join('');
+  $('#fontD').innerHTML = '<option value="">Automática (la semilla)</option>' + LF.seed.LIB.displays.map(d => `<option value="${esc(d[0])}">${esc(d[0])}</option>`).join('');
+  $('#fontB').innerHTML = '<option value="">Automática (la semilla)</option>' + LF.seed.LIB.bodies.map(d => `<option value="${esc(d[0])}">${esc(d[0])}</option>`).join('');
+  $('#colorEdit').innerHTML = COLOR_KEYS.map(([k, l]) => `<label class="color-pick"><input type="color" data-color="${k}" value="#888888" aria-label="${l}"><span>${l}</span></label>`).join('');
+  $('#palTitle').textContent = `Paletas con nombre (${cat.paletasConNombre})`;
+  $('#palGrid').innerHTML = LF.seed.NAMED.map((p, i) => `<button type="button" class="pal" data-pal="${i}" title="${esc(p[0])}"><span class="pal-sw">${p.slice(1).map(c => `<i style="background:${c}"></i>`).join('')}</span><small>${esc(p[0])}</small></button>`).join('');
+  $('#catalogInfo').textContent = `Catálogo: ${cat.estilos} estilos (${cat.estilosBase} base × ${cat.variantes + 1} variantes) · ${cat.paletasConNombre} paletas con nombre + infinitas generadas · ${cat.tipografias.toLocaleString('es')} pares de tipografías · ${cat.heros} heros · ${cat.beneficios} sistemas de beneficios · ${cat.tarjetas} tarjetas · ${cat.patrones} fondos · ${cat.bordes} bordes · ${cat.titulares} titulares · ${cat.navegaciones} navegaciones · ${cat.botones} botones · ${cat.decoraciones} decoraciones.`;
+  function ensureSeed() { if (!state.opts.seed.seed) setSeed(LF.seed.randomSeed()); }
+  function syncColorInputs(p) { $$('#colorEdit input').forEach(i => { i.value = p[i.dataset.color]; }); }
+  $('#twistSel').addEventListener('change', e => { ensureSeed(); state.opts.seed.twist = e.target.value; state.opts.seed.colors = null; renderSeedPanel(); renderSeedGrid(); });
+  function onFonts() { ensureSeed(); const d = $('#fontD').value, b = $('#fontB').value; state.opts.seed.fonts = (d || b) ? { display: d, body: b } : null; renderSeedPanel(); }
+  $('#fontD').addEventListener('change', onFonts); $('#fontB').addEventListener('change', onFonts);
+  $('#colorEdit').addEventListener('input', e => {
+    const k = e.target.dataset.color; if (!k) return;
+    ensureSeed();
+    const cur = state.opts.seed.colors || {};
+    if (!state.opts.seed.colors) { const dna = LF.seed.generate(state.opts.seed.seed, seedOpts()); COLOR_KEYS.forEach(([kk]) => { cur[kk] = dna.palette[kk]; }); }
+    cur[k] = e.target.value; state.opts.seed.colors = cur;
+    const dna = LF.seed.generate(state.opts.seed.seed, seedOpts());
+    renderSeedPanelKeepPickers(dna);
+  });
+  function renderSeedPanelKeepPickers(dna) {   // al mover un selector de color no se redibujan los selectores (así no se pierde el foco)
+    const keep = $$('#colorEdit input').map(i => i.value);
+    renderSeedPanel();
+    $$('#colorEdit input').forEach((i, n) => { i.value = keep[n]; });
+  }
+  $('#palGrid').addEventListener('click', e => {
+    const b = e.target.closest('[data-pal]'); if (!b) return;
+    ensureSeed();
+    const p = LF.seed.NAMED[+b.dataset.pal];
+    state.opts.seed.colors = { bg: p[1], text: p[2], primary: p[3], accent: p[4], accent2: p[5] };
+    renderSeedPanel(); toast('Paleta «' + p[0] + '» aplicada');
+  });
+  $('#colorInvert').addEventListener('click', () => {
+    ensureSeed();
+    const dna = LF.seed.generate(state.opts.seed.seed, seedOpts());
+    state.opts.seed.colors = LF.seed.invertColors(dna.palette);
+    renderSeedPanel(); toast(dna.dark ? 'Versión clara' : 'Versión oscura');
+  });
+  $('#colorReset').addEventListener('click', () => { state.opts.seed.colors = null; renderSeedPanel(); toast('Colores de la semilla'); });
+
+  $('#seedInput').addEventListener('change', e => setSeed(e.target.value));
+  $('#seedInput').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); setSeed(e.target.value); } });
+  $('#wildSeg').addEventListener('change', e => { state.opts.seed.wild = e.target.value; renderSeedPanel(); renderSeedGrid(); if (state.opts.seed.seed) toast('Locura: ' + (e.target.value === '' ? 'la decide la semilla' : LF.seed.WILD[+e.target.value])); });
+  $('#seedDice').addEventListener('click', () => setSeed(LF.seed.randomSeed()));
+  $('#seedClear').addEventListener('click', () => { state.opts.seed.seed = ''; renderSeedPanel(); toast('Modo manual: elige los estilos en la técnica 1'); });
+  $('#seedGrid').addEventListener('click', e => { const t = e.target.closest('[data-seed]'); if (t) setSeed(t.dataset.seed); });
+  $('#seedMore').addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); renderSeedGrid(); });
+  renderSeedGrid();
+
   $('#techGroups').addEventListener('click', e => {
     const card = e.target.closest('.tcard'); if (!card) return;
     const id = card.dataset.t;
@@ -241,19 +357,12 @@
       if (arr.includes(v)) arr = arr.filter(x => x !== v);
       else { arr = arr.concat(v); if (arr.length > max) arr = arr.slice(arr.length - max); }
       state.opts[id][key] = arr;
+      if (id === 'seed' && key === 'seeds' && state.opts.seed.seed) { state.opts.seed.seed = ''; renderSeedPanel(); toast('Semilla desactivada: ahora eliges los estilos a mano'); }
       $$('.chip', box).forEach(c => { const on = arr.includes(c.dataset.v); c.classList.toggle('on', on); c.setAttribute('aria-pressed', on); });
       if (!state.selected.has(id)) { state.selected.add(id); updateSelection(); }
       return;
     }
-    if (e.target.closest('[data-random-seed]')) {
-      const pool = D.seeds.map(s => s.id).sort(() => Math.random() - .5);
-      state.opts.seed.seeds = pool.slice(0, 2);
-      const box = $('[data-chips="seeds"]', card);
-      $$('.chip', box).forEach(c => { const on = state.opts.seed.seeds.includes(c.dataset.v); c.classList.toggle('on', on); c.setAttribute('aria-pressed', on); });
-      state.selected.add('seed'); updateSelection();
-      toast('Semillas: ' + state.opts.seed.seeds.map(s => D.seeds.find(x => x.id === s).name).join(' + '));
-      return;
-    }
+    if (e.target.closest('[data-random-seed]')) { setSeed(LF.seed.randomSeed()); return; }
     if (e.target.closest('[data-why]')) { const th = $('.theory', card); th.hidden = !th.hidden; return; }
     if (e.target.closest('[data-gen]')) { if (!needTema()) return; produce([P.single(id, state.brief, state.opts[id])]); }
   });
@@ -305,10 +414,11 @@
     'Recibirás el brief del proyecto, las técnicas elegidas (con su fundamento) y un borrador hecho con plantillas.',
     'Reglas:',
     '- Mejora el borrador: hazlo específico para este negocio y su público, con decisiones concretas (paleta con códigos HEX, tipografías, estructura de secciones con su titular y copy principal, micro-copy de los botones) en lugar de instrucciones genéricas.',
-    '- Conserva los encabezados en markdown (# ROL, # OBJETIVO, # CONTEXTO DEL PROYECTO, etc.), las líneas del contexto con el formato «- Campo: valor» y las etiquetas de técnica tal cual ([T1], [T2]…): la app las usa para reconocer el prompt.',
+    '- Conserva TODOS los encabezados en markdown del borrador (# ROL, # OBJETIVO, # CONTEXTO DEL PROYECTO, # ADN DE DISEÑO, # SECTOR Y VOCABULARIO VISUAL, # ARQUITECTURA DE LA PÁGINA, # ILUSTRACIONES DE ESTA LANDING, # PROTOCOLO DE ACTIVOS, # RESTRICCIONES, # ENTREGABLE, # CHECKLIST, etc.), el ADN de la semilla con sus valores exactos (HEX, tipografías, layouts) y los marcadores <span data-lf-shape> / <img data-lf-image> del protocolo, las líneas del contexto con el formato «- Campo: valor» y las etiquetas de técnica tal cual ([T1], [T2]…): la app las usa para reconocer el prompt.',
     '- Aplica fielmente cada técnica elegida según el tratado y no añadas técnicas que no se eligieron.',
     '- No inventes datos, cifras, premios ni testimonios que no estén en el brief: usa [dato por confirmar].',
-    '- Si hay prompts de imagen o vídeo, escríbelos en inglés dentro de un bloque ```text para que no se confundan con instrucciones.',
+    '- Respeta el sector del borrador: si vende productos físicos (ropa, belleza, hogar) la página muestra productos reales y NUNCA dashboards, KPIs ni mockups de software; solo el sector software lleva maquetas de interfaz. Prohíbe círculos o cuadros abstractos vacíos.',
+    '- Las imágenes se dibujan en código (SVG y CSS): no pidas fotos ni imágenes externas. Si hay un prompt de vídeo, escríbelo en inglés dentro de un bloque ```text.',
     '- Responde solo con el prompt final, sin introducción, sin explicación y sin envolverlo en un bloque de código.'
   ].join('\n');
 
@@ -500,14 +610,12 @@
     $('#cfgServer').textContent = `Se usa la clave guardada en el archivo .env del servidor · modelo ${cfg.model}. No hace falta pegar nada.`;
     state.settings.provider = 'server'; S.setSettings(state.settings);
     renderAiConfig();
-    const ai = $('input[name=engine][value=ai]'); ai.checked = true; ai.dispatchEvent(new Event('change'));
   }
   $('#aiConfig').addEventListener('change', e => {
     if (e.target.id === 'compatPreset') { const pr = A.COMPAT_PRESETS[e.target.value]; if (pr.base) $('#compatBase').value = pr.base; if (pr.model) $('#compatModel').value = pr.model; }
     saveAi();
   });
   $('#aiConfig').addEventListener('input', saveAi);
-  $$('input[name=engine]').forEach(r => r.addEventListener('change', () => { $('#aiConfig').hidden = r.value !== 'ai' || !r.checked; }));
 
   /* vista del escenario */
   function stageTab(which) {
@@ -663,7 +771,7 @@
       const newStep = steps.length !== shownSteps;
       if (newStep) { renderSteps(); shownSteps = steps.length; }
       const due = Date.now() - lastPreview > (newStep ? 1200 : 2500);
-      if (/<body[\s>]/i.test(acc) && due) preview(A.extractHtml(acc), true);
+      if (/<body[\s>]/i.test(acc) && due) preview(LF.assets.resolveShapes(A.extractHtml(acc)), true);
     }
 
     return {
@@ -698,21 +806,8 @@
   async function run() {
     const text = $('#studioPrompt').value.trim();
     if (!text) { toast('No hay prompt que ejecutar. Genera uno en el paso 2 o pega el tuyo.', true); return; }
-    const engine = $('input[name=engine]:checked').value;
     const spec = specFromStudio();
     $('#runBtn').disabled = true;
-
-    if (engine === 'local') {
-      const phasesTxt = ['Descubrir: aplicando semilla y psicología…', 'Definir: jerarquía, auditoría y recorte…', 'Entregar: copy, activos y código…'];
-      for (const p of phasesTxt) { status(p); await wait(280); }
-      try {
-        const out = E.build(spec);
-        setBuild({ html: out.html, report: out.report, engine: 'Motor local', promptText: text, spec });
-        status(`Landing construida con el motor local · tema «${out.theme}» · ${out.sections.length} secciones`, 'ok');
-      } catch (err) { console.error(err); status('Error al construir: ' + err.message, 'err'); }
-      $('#runBtn').disabled = false;
-      return;
-    }
 
     saveAi();
     const cfg = aiCfg();
@@ -725,22 +820,31 @@
     live.start(modelName);
     status('Conectando con ' + modelName + '…');
     try {
-      const res = await A.run(cfg, text, chunk => {
-        acc += chunk;
-        live.push(chunk);
-        const now = Date.now();
-        if (now - last > 900) {
-          last = now;
-          status(`Construyendo… ${acc.length.toLocaleString('es')} caracteres · ${Math.round((now - t0) / 1000)} s`);
-        }
-      }, ctrl.signal, (msg, realModel) => { live.status(msg, realModel); status(msg); });
-      const html = A.extractHtml(acc);
+      // Los modelos gratuitos a veces cortan la respuesta a mitad: si no llegó </html>, se reintenta (hasta 3 veces)
+      let res, attemptN = 0;
+      while (true) {
+        attemptN++;
+        acc = '';
+        if (attemptN > 1) live.start(modelName);
+        res = await A.run(cfg, text, chunk => {
+          acc += chunk;
+          live.push(chunk);
+          const now = Date.now();
+          if (now - last > 900) {
+            last = now;
+            status(`Construyendo… ${acc.length.toLocaleString('es')} caracteres · ${Math.round((now - t0) / 1000)} s${attemptN > 1 ? ' · intento ' + attemptN : ''}`);
+          }
+        }, ctrl.signal, (msg, realModel) => { live.status(msg, realModel); status(msg); }, { onRestart: () => { acc = ''; live.start(modelName); } });
+        if (/<\/html>/i.test(acc) || attemptN >= 3) break;
+        status(`La IA se cortó a los ${acc.length.toLocaleString('es')} caracteres. Reintentando (${attemptN + 1}/3)…`);
+      }
+      let html = LF.assets.resolveShapes(A.extractHtml(acc));
       // Si la respuesta no llegó hasta </html>, la IA dejó de escribir a medias: se muestra lo que hay, pero se avisa
       const complete = /<\/html>/i.test(acc);
       const cutMsg = `La IA dejó de escribir antes de terminar (${acc.length.toLocaleString('es')} caracteres). Vuelve a intentarlo.`;
       live.finish(complete, cutMsg, html);
       const comments = (html.match(/<!--([\s\S]*?)-->/g) || []).map(c => c.slice(4, -3).trim()).filter(c => c.length > 20);
-      const report = [{ agent: 'IA real', msg: `Modelo ${res.usage.model || cfg.model} · ${res.usage.output_tokens ? res.usage.output_tokens.toLocaleString('es') + ' tokens de salida · ' : ''}${Math.round((Date.now() - t0) / 1000)} s`, kind: complete ? 'ok' : 'warn' }];
+      const report = [{ agent: 'IA real', msg: `Modelo ${res.usage.model || cfg.model} · ${res.usage.output_tokens ? res.usage.output_tokens.toLocaleString('es') + ' tokens de salida · ' : ''}${Math.round((Date.now() - t0) / 1000)} s · fin: ${res.stop || 'sin señal'}`, kind: complete ? 'ok' : 'warn' }];
       if (!complete) report.push({ agent: 'Aviso', msg: cutMsg, kind: 'warn' });
       if (res.stop === 'max_tokens' || res.stop === 'length') report.push({ agent: 'Aviso', msg: 'La respuesta alcanzó el límite de longitud; el HTML puede estar incompleto.', kind: 'warn' });
       comments.forEach((c, i) => report.push({ agent: `Anotación del modelo ${i + 1}`, msg: 'Comentario incluido en el código:', kind: 'info', pre: c.slice(0, 3000) }));
@@ -806,10 +910,35 @@
         S.useServerBank(server.concat(upload));
         upload.forEach(S.pushBank);
         if (!S.getBank().some(x => x.exampleId)) seedBank();
+        else seedNewExamples();
         if (upload.length) toast(`${upload.length} landing(s) de este navegador guardadas en el banco del proyecto`);
       } else if (!S.isSeeded()) seedBank();
+      else seedNewExamples();
     } catch (e) { console.error(e); }
     renderBank();
+  }
+
+  /* Ejemplos añadidos en versiones nuevas: se suman una sola vez al banco (los que borres no vuelven) */
+  function seedNewExamples() {
+    let seen;
+    try { seen = JSON.parse(localStorage.getItem('lf.seenExamples') || 'null'); } catch (e) { seen = null; }
+    const legacy = ['ex-quantum', 'ex-watch', 'ex-calm', 'ex-credit', 'ex-consult', 'ex-bio'];
+    if (!Array.isArray(seen)) seen = legacy.slice();
+    const fresh = D.examples.filter(ex => !seen.includes(ex.id));
+    const have = new Set(S.getBank().map(x => x.exampleId).filter(Boolean));
+    let added = 0;
+    fresh.forEach(ex => {
+      if (have.has(ex.id)) return;
+      const opts = {};
+      ex.techniques.forEach(t => { opts[t] = Object.assign(D.defaultOpts(t), (ex.opts || {})[t] || {}); });
+      const brief = Object.assign({}, D.emptyBrief, ex.brief);
+      const p = ex.techniques.length > 1 ? P.combined(ex.techniques, brief, opts) : P.single(ex.techniques[0], brief, opts[ex.techniques[0]]);
+      const out = E.build({ brief, techniques: ex.techniques, opts });
+      S.addBank({ exampleId: ex.id, title: `${ex.brief.marca} · ${ex.label}`, html: out.html, prompt: p.text, techniques: p.techniques, brief: { marca: brief.marca, tema: brief.tema, industria: brief.industria }, engine: 'Motor local', rating: ex.rating, featured: ex.rating >= 5, createdAt: Date.now() - (added + 1) * 3600e3 });
+      added++;
+    });
+    try { localStorage.setItem('lf.seenExamples', JSON.stringify(D.examples.map(x => x.id))); } catch (e) { /* sin almacenamiento */ }
+    if (added) toast(`${added} ejemplo(s) nuevo(s) añadidos al banco`);
   }
 
   function seedBank(force) {
@@ -827,6 +956,7 @@
       added++;
     });
     S.markSeeded();
+    try { localStorage.setItem('lf.seenExamples', JSON.stringify(D.examples.map(x => x.id))); } catch (e) { /* sin almacenamiento */ }
     if (force) toast(added ? `${added} ejemplo(s) restaurado(s)` : 'Los ejemplos ya están en el banco');
   }
 
@@ -985,7 +1115,7 @@
     seed: 'cambia la tipografía, la paleta, la retícula del hero, los ornamentos SVG y el estilo de las tarjetas según la semilla (11 estilos, combinables de dos en dos).',
     ambitious: 'reordena las secciones según el marco (AIDA, PAS, BAB, 4P, StoryBrand), adapta el titular al nivel de consciencia y añade inoculación, escasez o prueba social.',
     subagents: 'ejecuta un agente crítico que corrige contraste, titulares largos, CTA y formulario, y deja un informe con propuesta de test A/B.',
-    image: 'genera ilustraciones SVG coherentes con la semilla, una galería de activos y los prompts de imagen listos para Midjourney, DALL·E o Flux.',
+    image: 'dibuja ilustraciones SVG y CSS propias del tema y de la semilla (siluetas de producto, motivos del negocio), sin fotos ni servicios externos.',
     video: 'añade un fondo animado en canvas que simula el vídeo (respetando «reducir movimiento») e incluye el prompt de vídeo.',
     subtractive: 'elimina el porcentaje indicado de secciones decorativas, reduce el menú, los beneficios y los campos del formulario.',
     negative: 'sustituye las palabras prohibidas, elimina degradados y colores púrpura típicos de IA y lo reporta.',

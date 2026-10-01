@@ -17,6 +17,24 @@ La app convierte las **8 técnicas avanzadas de diseño de landing pages con IA*
 
 ---
 
+## Novedades: semillas, sectores e imágenes
+
+### Semilla del diseño (como en Minecraft)
+En el paso 2 hay un panel **🌱 Semilla del diseño**: escribe un número o una palabra (o pulsa 🎲) y se genera un **ADN de diseño determinista**: el mismo valor da siempre el mismo diseño y cualquier cambio da otro. Decide 1–2 estilos de un catálogo de **47** (Bauhaus, Wabi-sabi, Streetwear, Workwear/denim, Lookbook de alta moda, Risograph…), una paleta generada (nunca morado de IA, con contraste AA), el par tipográfico, la retícula del hero, el sistema de beneficios, la forma de las esquinas, textura, movimiento, tratamiento de imagen, densidad y estilo de botón. Además hay un **nivel de locura** (sobrio · atrevido · loco · caos total; lo decide la semilla o lo fijas tú) que activa rasgos extremos: fondos con patrón, bordes de sección en ola/zigzag/rasgado/diagonal, tarjetas tipo sticker/polaroid/ticket/cinta, titulares en contorno, inclinados, con marcador o gigantes, navegación en píldora o centrada, cinta marquesina, formas decorativas sueltas, orden de bloques barajado (solo los que pueden moverse), una tercera tipografía de acento y heros nuevos (gigante, diagonal, collage). La galería «8 mundos» permite elegir visualmente.
+
+**Catálogo de la semilla:** 517 estilos (47 base × 10 variantes: nocturna, pastel, neón, monocroma, tierra, océano, solar, bosque, ceniza y alto contraste), 62 paletas con nombre más infinitas generadas, más de 3.500 pares de tipografías (≈100 para titulares × 34 para texto, más una tercera de acento), 20 heros, 19 sistemas de beneficios, 13 estilos de tarjeta, 17 fondos con patrón, 11 bordes entre secciones, 12 titulares, 8 navegaciones, 8 botones y 15 formas decorativas. Combinados salen cientos de millones de diseños.
+
+**Elige tú lo que quieras:** en «🎨 Personalizar» puedes fijar la **variante**, las **tipografías** (titulares y texto), los **5 colores** (fondo, texto, primario, acento y acento 2, con selector de color), una de las 62 paletas con nombre o invertir claro/oscuro. Lo que no fijes lo sigue decidiendo la semilla. Si en el paso 1 desmarcas «que la IA proponga la paleta», tus colores de marca también mandan sobre la semilla. Ese ADN entra en el prompt (sección `# ADN DE DISEÑO`) y en el motor local. Tocar un estilo a mano desactiva la semilla.
+
+### Packs de sector
+Antes todas las landings recibían la misma maqueta (dashboard con KPIs), lo que no tenía sentido para una tienda. Ahora cada sector (`js/verticals.js`) define qué debe verse, qué está **prohibido**, la **arquitectura de la página** (bloques con objetivo, contenido y visual) y sus prompts de imagen. Hay packs de ropa/moda, belleza, hogar, e-commerce, restaurante, viajes, inmobiliaria, educación, salud/deporte, software y servicios. Cada pack trae además sus **motivos visuales propios** (guantes, saco y pesas para boxeo; platos y tazas para restaurante; casas y llaves para inmobiliaria; dientes y cruz médica para una clínica…) y una regla de **coherencia**: nada de otro sector puede aparecer (ni camisetas en un gimnasio ni dashboards en una tienda). Se elige por el sector del brief o, si sigue en «SaaS», por las palabras del tema (p. ej. «tienda de ropa»). El motor local dibuja **siluetas de prendas y productos** en SVG (camiseta, sudadera, vestido, jean, chaqueta, zapatilla, frasco, taza, lámpara…) con colores, tallas y botón de compra.
+
+### Prompt estructurado
+Orden fijo: Rol → Objetivo → Contexto → **ADN de diseño** → **Sector y vocabulario visual** → **Arquitectura de la página** → Técnicas → **Imágenes de esta landing** → **Protocolo de activos** → Restricciones → Entregables → Checklist (con comprobaciones propias del sector).
+
+### Todo dibujado en código (sin fotos)
+La técnica 4 ahora es **«Generación de imágenes (dibujadas en código)»**: la IA dibuja las ilustraciones directamente en **SVG y CSS**, propias del tema y con la paleta y el estilo de la semilla. No hay fotos, ni servicios de imágenes, ni claves extra. Opciones: estilo de ilustración (plano geométrico, línea fina, isométrico, collage, blueprint, risografía, pixel art, acuarela vectorial), nivel de detalle y micro-animaciones CSS. El prompt incluye una lista «ILUSTRACIONES DE ESTA LANDING» con qué dibujar en cada sección (productos de la tienda, guantes y saco para boxeo, taza y plato para un café…) y un protocolo con 43 siluetas listas (`data-lf-shape`). Si el objeto no está en la librería, la IA dibuja su propio SVG.
+
 ## Cómo abrirla
 
 No necesita instalación ni internet para funcionar (solo para las fuentes tipográficas y el modo «IA real»).
@@ -41,7 +59,7 @@ No necesita instalación ni internet para funcionar (solo para las fuentes tipog
 
 ### 1 · Proyecto
 Escribe el **tema** (único campo obligatorio) y los datos básicos: marca, sector, objetivo de conversión, público, problema, propuesta de valor, beneficios, objeciones, prueba social, oferta, tono, idioma, colores y formato de salida.
-- **Cargar un ejemplo** rellena un proyecto completo (6 ejemplos) y sugiere técnicas.
+- **Cargar un ejemplo** rellena un proyecto completo (17 ejemplos) y sugiere técnicas.
 - El medidor **Fuerza del brief** indica qué falta para que el prompt sea más preciso.
 - Todo se guarda automáticamente en el navegador.
 
@@ -68,7 +86,7 @@ La vista previa tiene modos **escritorio / tableta / móvil**, pestañas **Vista
 - **Ver landing + prompt** abre la vista dividida: la web a la izquierda y el prompt completo a la derecha.
 - Valoración con **estrellas**, marca de **destacada**, **búsqueda**, **filtro por técnica** y orden por **mejor valoradas**.
 - **Re-ejecutar** un prompt del banco, **descargar**, **eliminar**, **exportar/importar** el banco en JSON y **restaurar ejemplos**.
-- Viene precargado con 6 landings de ejemplo.
+- Viene precargado con 17 landings de ejemplo de distintos sectores (ropa, streetwear, zapatillas, cosmética, hogar, café, viajes, inmobiliaria, curso, boxeo, ONG, software…), cada una con su semilla y nivel de locura. Los ejemplos nuevos se suman solos al banco una vez; los que borres no vuelven.
 - Con `server.py`, el banco se guarda en la carpeta **`bank/`** del proyecto (un archivo JSON por landing, con su HTML y su prompt): no se pierde al borrar el navegador y viaja con el repositorio. Sin servidor, se guarda solo en el navegador.
 
 ---
@@ -112,7 +130,12 @@ LandingForge/
 ├── index.html        Interfaz (4 pasos + guía)
 ├── css/styles.css    Estilos (modo claro/oscuro, responsive)
 └── js/
-    ├── data.js       Catálogo de técnicas, semillas, opciones y ejemplos
+    ├── seeds.js      47 estilos de semilla y pares tipográficos curados
+    ├── seeds2.js     10 variantes, 62 paletas con nombre y librería de tipografías
+    ├── dna.js        Generador de semillas (ADN de diseño determinista)
+    ├── verticals.js  Packs de sector y siluetas de producto SVG
+    ├── assets.js     Convierte marcadores de la IA en siluetas y fotos
+    ├── data.js       Catálogo de técnicas, opciones y ejemplos
     ├── prompts.js    Generador de prompts: individual, combinado, lectura y puntuación
     ├── engine.js     Motor local que construye la landing HTML
     ├── ai.js         Conexión con Claude u otros proveedores (streaming)

@@ -26,9 +26,12 @@ LF.prompts = (function () {
     return b.colorAuto ? 'libre: propón una paleta coherente con la estética elegida'
       : `${b.color1} (primario) y ${b.color2} (acento)`;
   }
-  function paletteEn(b) {
+  function paletteEn(b, dna) {
+    if (dna) { const p = dna.palette; return `${LF.seed.colorName(p.primary)}, ${LF.seed.colorName(p.accent)} and ${LF.seed.colorName(p.bg)}`; }
     return b.colorAuto ? 'restrained brand-consistent' : `${b.color1} and ${b.color2} brand`;
   }
+  const packOf = b => LF.verticals.detect(b);
+  const dnaOf = (ids, optsMap, b) => (ids.includes('seed') && optsMap && optsMap.seed && clean(optsMap.seed.seed)) ? LF.seed.generate(optsMap.seed.seed, LF.seed.optsFrom(optsMap.seed, b)) : null;
 
   /* ---------- bloque de contexto (también se parsea de vuelta) ---------- */
   const FIELDS = [
@@ -53,34 +56,52 @@ LF.prompts = (function () {
     return out.join('\n');
   }
 
+  function visualRule(pack) {
+    if (pack.kind === 'ui') return 'En las áreas visuales (hero y galería) NUNCA uses figuras geométricas vacías, círculos o cuadros abstractos; maqueta componentes de producto ricos en HTML y CSS (mockups de interfaz, dashboards con métricas, gráficos de datos o tarjetas interactivas) que demuestren el producto o servicio en acción.';
+    const never = pack.never.slice(0, 3).join('; ');
+    return `Sector «${pack.label}»: las áreas visuales muestran ${pack.what}, NO software. Prohibido: ${never}. Nunca uses figuras geométricas vacías como sustituto de lo que se vende.`;
+  }
   function deliverableFormat(b) {
     const f = b.formato || 'html';
     const lang = b.idioma || 'Español';
+    const pack = packOf(b);
     const common = `Todo el texto visible en ${lang.toLowerCase()}. Mobile-first, responsive, accesible (WCAG 2.2 AA: contraste, etiquetas, foco visible, prefers-reduced-motion) y con HTML semántico.`;
-    if (f === 'tailwind') return `Devuelve un único archivo HTML completo que use Tailwind CSS por CDN y JavaScript mínimo embebido. ${common} Sin imágenes externas: usa SVG inline o CSS.`;
+    if (f === 'tailwind') return `Devuelve un único archivo HTML completo que use Tailwind CSS por CDN y JavaScript mínimo embebido. ${common} ${visualRule(pack)}`;
     if (f === 'wire') return `Devuelve un wireframe textual bloque por bloque (objetivo, copy final, elemento visual, CTA) listo para maquetar. ${common}`;
-    return `Devuelve un único documento HTML completo (<!DOCTYPE html>) con CSS y JS embebidos, sin dependencias externas salvo Google Fonts. ${common} Sin imágenes externas: usa SVG inline, patrones CSS o composiciones que anticipen los activos finales.`;
+    return `Devuelve un único documento HTML completo (<!DOCTYPE html>) con CSS y JS embebidos, sin dependencias externas salvo Google Fonts. ${common} ${visualRule(pack)}`;
   }
 
   /* ---------- prompts auxiliares de imagen y vídeo (en inglés, como en el tratado) ---------- */
+  /* Qué dibujar y cómo: lista de ilustraciones en código (SVG/CSS) propias del negocio */
+  function subjectsFor(pack, b) {
+    if (pack.kind === 'catalog') return LF.verticals.products(pack, b, 8).map(p => p.name.toLowerCase());
+    const mo = LF.verticals.motifs(pack, b);
+    if (mo) return mo.text.split(',').map(x => x.replace(/\(.*?\)/g, '').trim()).filter(Boolean);
+    if (pack.kind === 'ui') return ['la interfaz del producto con datos creíbles del negocio', 'un gráfico de datos propio del caso de uso', 'el flujo de pasos del producto', 'una tarjeta de resultado o informe'];
+    return [topic(b)];
+  }
+  function styleText(o, pack, dna) {
+    const d = D.imageStyles[o.style];
+    if (d) return d;
+    if (pack.kind === 'ui') return 'maquetas de interfaz en HTML y CSS, con barra de ventana y datos creíbles';
+    return dna ? `el tratamiento de imagen de la semilla (${dna.imageTreatment}) interpretado como ilustración vectorial` : 'ilustración vectorial plana y coherente con la marca';
+  }
   function imagePrompts(b, o, seedIds) {
     o = Object.assign(D.defaultOpts('image'), o || {});
-    const style = D.imageStyles[o.style] || D.imageStyles['Texturas abstractas'];
-    const seedHint = (seedIds || []).length ? `, visual language inspired by ${seedIds.map(seedName).join(' and ')}` : '';
-    const neg = o._negative ? ' --no oversaturated colors, perfect skin, plastic textures, generic office, stock photo look' : '';
-    const mj = /midjourney/i.test(o.tool);
-    const ar = mj ? ` --ar ${o.ratio} --v 6.0 --style raw` : ` (aspect ratio ${o.ratio})`;
-    const subj = topic(b);
-    const light = o.light ? `, ${o.light}` : ', soft studio lighting';
-    const list = [
-      { use: 'Hero principal', text: `Conceptual hero image representing "${subj}" for ${clean(b.publico) || 'the target audience'}, ${style}${seedHint}, ${paletteEn(b)} color palette${light}, generous negative space for headline, no text, ultra-detailed${ar}${neg}` },
-      { use: 'Fondo de la sección de beneficios', text: `Subtle seamless background texture evoking "${subj}", ${style}, ${paletteEn(b)} palette, low contrast so text stays readable${light}, no text${mj ? ' --ar 21:9 --v 6.0 --tile' : ''}${neg}` },
-      { use: 'Serie de iconos', text: `Set of 3 consistent icons for: ${benefitTitles(b).slice(0, 3).join(', ') || 'focus, collaboration, analytics'}, ${style}, identical lighting and camera angle, ${paletteEn(b)} palette, isolated on plain background${mj ? ' --ar 1:1 --v 6.0' : ''}${neg}` },
-      { use: 'Imagen de prueba social', text: `Documentary-style photo of a real ${clean(b.publico) || 'customer'} using ${subj}, natural imperfect light, film grain, candid, not looking at camera${mj ? ' --ar 4:5 --v 6.0 --style raw' : ''}${neg}` },
-      { use: 'Detalle de producto', text: `Close-up detail shot of ${subj}, ${style}, shallow depth of field${light}, ${paletteEn(b)} palette${mj ? ' --ar 4:5 --v 6.0' : ''}${neg}` },
-      { use: 'Imagen para redes (Open Graph)', text: `Minimal composition for "${brand(b)}" social share card, ${style}${seedHint}, ${paletteEn(b)} palette, centered focal point, no text${mj ? ' --ar 1.91:1 --v 6.0' : ''}${neg}` }
-    ];
-    return list.slice(0, Math.max(1, Math.min(6, +o.count || 3)));
+    const pack = packOf(b), dna = o._dna || null;
+    const subj = subjectsFor(pack, b);
+    const st = styleText(o, pack, dna);
+    const pal = dna ? `la paleta del ADN (${dna.palette.bg}, ${dna.palette.primary}, ${dna.palette.accent})` : (b.colorAuto ? 'una paleta de 3–4 colores coherente con la marca' : `${b.color1} y ${b.color2}`);
+    // una ilustración por bloque visual de la arquitectura de la página (el hero primero)
+    const secs = pack.sections.filter(x => !/^(anuncio|pie|newsletter|logistica|resenas|cta|contacto|reserva|inscripcion|visita)$/.test(x.id));
+    const base = secs.map(x => ({ use: x.id === 'hero' ? 'Ilustración principal del hero' : `Ilustración de «${x.name}»`, section: x.id }));
+    base.push({ use: 'Serie de iconos de los beneficios', section: 'beneficios' }, { use: 'Patrón de fondo repetible (SVG)', section: 'fondos' }, { use: 'Imagen para redes (Open Graph)', section: 'pie' });
+    const list = base.map((x, i) => {
+      const what = i === 0 ? (subj.length > 1 ? `una composición con ${subj.slice(0, 3).join(', ')}` : subj[0]) : subj[i % subj.length];
+      const extra = /Patrón/.test(x.use) ? 'Un patrón repetible y sutil con los motivos del negocio.' : /iconos/.test(x.use) ? 'Tres iconos coherentes entre sí, uno por beneficio.' : '';
+      return { use: x.use, section: x.section, text: `Dibuja con SVG inline ${/Patrón|iconos/.test(x.use) ? 'elementos propios del negocio' : what}. ${extra} Estilo: ${st}. Colores: ${pal}.`.replace(/  +/g, ' ') };
+    });
+    return list.slice(0, Math.max(1, Math.min(list.length, +o.count || 4)));
   }
 
   function videoPrompt(b, o) {
@@ -110,12 +131,19 @@ LF.prompts = (function () {
     const r = { id, num: t.num, name: t.name, phase: t.phase, role: '', instructions: [], constraints: [], deliverables: [] };
 
     if (id === 'seed') {
-      const s = (o.seeds && o.seeds.length ? o.seeds : ['bauhaus']);
+      const dna = ctx.dna || null;
+      const s = dna ? dna.styles : (o.seeds && o.seeds.length ? o.seeds : ['bauhaus']);
       r.role = 'Lead Designer especializado en vanguardia digital y dirección de arte';
-      r.instructions.push(`Usa como Seed String (fuente única de verdad estética) la fusión de: ${s.map(x => `«${seedName(x)}»`).join(' + ')}${clean(o.mix) ? ` mezclado con «${clean(o.mix)}»` : ''}. Ancla la retícula, la tipografía, el color, la iconografía y el ritmo del scroll a esa semilla antes de diseñar nada.`);
+      if (dna) r.instructions.push(`La semilla «${dna.seed}» ya decidió el ADN visual de esta landing (sección «ADN DE DISEÑO»): es la fuente única de verdad estética y se aplica tal cual. Fusiona ${s.map(x => `«${seedName(x)}»`).join(' + ')}${clean(o.mix) ? ` con «${clean(o.mix)}»` : ''}.`);
+      else r.instructions.push(`Usa como Seed String (fuente única de verdad estética) la fusión de: ${s.map(x => `«${seedName(x)}»`).join(' + ')}${clean(o.mix) ? ` mezclado con «${clean(o.mix)}»` : ''}. Ancla la retícula, la tipografía, el color, la iconografía y el ritmo del scroll a esa semilla antes de diseñar nada.`);
       s.forEach(x => r.instructions.push(`De «${seedName(x)}» toma: ${seedTraits(x)}.`));
-      r.instructions.push('Estructura el Hero evitando el layout estándar: propón una retícula asimétrica donde el espacio negativo sea protagonista.');
-      r.instructions.push('Traduce la semilla a un mini sistema de diseño: 2 tipografías (display + texto), una paleta de 4–5 colores con HEX y un patrón gráfico recurrente que aparezca en al menos tres secciones.');
+      if (dna) {
+        r.instructions.push(`Hero: ${dna.heroText}. Beneficios: ${dna.benefitsText}. No los sustituyas por el layout estándar.`);
+        r.instructions.push('Declara el sistema de diseño final (tipografías, HEX, patrón gráfico recurrente en al menos tres secciones) y respeta los valores del ADN.');
+      } else {
+        r.instructions.push('Estructura el Hero evitando el layout estándar: propón una retícula asimétrica donde el espacio negativo sea protagonista.');
+        r.instructions.push('Traduce la semilla a un mini sistema de diseño: 2 tipografías (display + texto), una paleta de 4–5 colores con HEX y un patrón gráfico recurrente que aparezca en al menos tres secciones.');
+      }
       (o.avoid || []).forEach(a => r.constraints.push(`Prohibido: ${a.toLowerCase()}.`));
       r.deliverables.push('Resumen del sistema de diseño derivado de la semilla (tipografías, HEX, patrón), como comentario al inicio del código.');
     }
@@ -149,16 +177,18 @@ LF.prompts = (function () {
     }
 
     if (id === 'image') {
-      const io = Object.assign({}, o, { _negative: !!ctx.negative });
+      const pack = ctx.pack || packOf(b);
+      const io = Object.assign({}, o, { _negative: !!ctx.negative, _dna: ctx.dna || null });
       const ex = imagePrompts(b, io, ctx.seeds);
-      r.role = 'director de arte especializado en generación de imágenes con IA';
-      r.instructions.push(`Diseña ${o.count} activo(s) visual(es) propio(s) para ${o.tool} — nada de stock. Estilo: ${o.style.toLowerCase()}; relación de aspecto del hero ${o.ratio}; iluminación: ${clean(o.light) || 'coherente'}; paleta ${paletteText(b)}.`);
-      r.instructions.push('Mantén consistencia absoluta de iluminación, ángulo de cámara y paleta entre todos los activos: deben sentirse integrados en la interfaz, no pegados encima.');
-      r.instructions.push('Escribe cada prompt de imagen en inglés, listo para pegar en la herramienta (con sus parámetros), e indica en qué sección va.');
-      r.instructions.push('En la landing, reserva el espacio de cada activo con una composición SVG/CSS que anticipe la imagen final.');
-      // En bloque de texto: algunos modelos (p. ej. Gemini) intentan dibujar la imagen si el prompt va suelto
-      r.instructions.push('Punto de partida sugerido para el hero (solo texto para copiar en un comentario; no generes la imagen):\n```text\n' + ex[0].text + '\n```');
-      r.deliverables.push(`Lista de ${ex.length} prompt(s) de imagen (uso → prompt) como comentario al final del código.`);
+      const mo = LF.verticals.motifs(pack, b);
+      r.role = 'ilustrador técnico: dibuja imágenes directamente en código (SVG y CSS)';
+      r.instructions.push(`Dibuja ${ex.length} ilustración(es) propia(s) DIRECTAMENTE EN CÓDIGO (SVG inline y CSS). Nada de fotos, de <img> con URLs ni de servicios externos. Estilo: ${styleText(o, pack, ctx.dna)}.`);
+      r.instructions.push(`Cada ilustración representa ${mo ? mo.text : (pack.kind === 'catalog' ? 'los productos de la tienda' : 'el tema del negocio «' + topic(b) + '»')}. Usa exactamente la paleta${ctx.dna ? ' del ADN (HEX)' : ''} y el mismo estilo de trazo en todas para que parezcan de la misma mano.`);
+      r.instructions.push(`Calidad del dibujo: ${D.imageDetail[o.detail] || D.imageDetail['Detallado']}. Define viewBox, agrupa por capas (<g>) y usa formas reconocibles del negocio; nunca círculos, cuadros o blobs vacíos como sustituto.`);
+      r.instructions.push('Tamaño: cada ilustración de la lista es una pieza grande que ocupa su bloque (al menos un tercio del ancho, viewBox de unos 400×300), con el nivel de detalle indicado. No las reduzcas a iconos de 24 px; los iconos pequeños van aparte, como serie de beneficios.');
+      r.instructions.push(`En la landing: ${visualRule(pack)}`);
+      if (o.animate) r.instructions.push('Añade micro-animaciones CSS a las ilustraciones (flotar, dibujar el trazo con stroke-dashoffset, parpadeos suaves) usando solo transform y opacity, y desactívalas con prefers-reduced-motion.');
+      r.deliverables.push(`Las ${ex.length} ilustraciones de la lista «ILUSTRACIONES DE ESTA LANDING» dibujadas como SVG inline en su sección, con role="img" y aria-label descriptivo.`);
     }
 
     if (id === 'video') {
@@ -224,99 +254,144 @@ LF.prompts = (function () {
 
   const ROLE_ORDER = ['seed', 'ambitious', 'subagents', 'subtractive', 'image', 'video', 'negative', 'human'];
 
+  /* ---------- secciones compartidas por todos los prompts ---------- */
+  function sectorLines(pack, b) { return LF.verticals.promptLines(pack, b); }
+
+  function archLines(pack, ids, optsMap, dna) {
+    let secs = pack.sections.slice();
+    const sub = ids.includes('subtractive') ? (optsMap.subtractive || {}) : null;
+    const amb = ids.includes('ambitious') ? (optsMap.ambitious || {}) : null;
+    const dropFromEnd = n => { for (let i = secs.length - 1; i >= 0 && n > 0; i--) if (!secs[i].core) { secs.splice(i, 1); n--; } };
+    if (sub) dropFromEnd(Math.round(secs.length * (+sub.pct || 30) / 100));
+    if (amb && +amb.blocks && secs.length > +amb.blocks) dropFromEnd(secs.length - +amb.blocks);
+    if (dna && dna.shuffle) secs = LF.seed.shuffleMiddle(secs, dna, x => !x.core);
+    const out = [`Construye la página en este orden exacto (${secs.length} bloques). Para cada uno respeta su objetivo, su contenido y su visual:`];
+    secs.forEach((x, i) => out.push(`${i + 1}. ${x.name} — Objetivo: ${x.purpose}. Contenido: ${x.content}. Visual: ${x.visual}.`));
+    if (sub) out.push(`(Diseño sustractivo: se han retirado los bloques no esenciales; navegación «${(sub.nav || '').toLowerCase()}», formulario de máximo ${sub.fields} campo(s).)`);
+    return out;
+  }
+
+  function imagesLines(pack, b, ids, optsMap, dna) {
+    if (!ids.includes('image')) return [];
+    const io = Object.assign(D.defaultOpts('image'), optsMap.image || {}, { _dna: dna });
+    const ex = imagePrompts(b, io, dna ? dna.styles : (ids.includes('seed') ? ((optsMap.seed || {}).seeds || []) : []));
+    const out = [];
+    ex.forEach((x, i) => out.push(`${i + 1}. ${x.use} · sección «${x.section}»: ${x.text}`));
+    return out;
+  }
+
+  function protocolLines(pack, ids, optsMap, b) {
+    return LF.verticals.assetProtocol(pack, false, b);
+  }
+
+  function checklistLines(pack, b, g, names) {
+    const out = [];
+    out.push(`¿Se entiende qué es ${brand(b)} y para quién en menos de 5 segundos?`);
+    out.push(`¿Hay un único CTA primario («${clean(b.cta) || g.cta}» o su versión mejorada) visible sin hacer scroll?`);
+    out.push(`¿Se reconoce de inmediato el sector «${pack.label}»? ${pack.show[0]}`);
+    out.push(`¿No aparece nada de lo prohibido para este sector (${pack.never.slice(0, 2).join('; ')})?`);
+    out.push('¿Todas las imágenes son SVG o CSS dibujados en código, sin ninguna foto, <img> ni URL externa?');
+    out.push(`¿Todo lo que se muestra (productos, iconos, ilustraciones, fotos, planes) pertenece a ${brand(b)} y a su tema? Nada de camisetas en un gimnasio ni dashboards en una tienda.`);
+    names.forEach(n => out.push(`¿Se nota la técnica «${n}» en el resultado final?`));
+    return out;
+  }
+
+  function assemble(kind, ids, b, optsMap) {
+    const pack = packOf(b), g = goal(b);
+    const dna = dnaOf(ids, optsMap, b);
+    const ctx = { seeds: ids.includes('seed') ? (dna ? dna.styles : ((optsMap.seed || {}).seeds || D.defaultOpts('seed').seeds)) : [], negative: ids.includes('negative'), dna, pack };
+    const blocks = ids.map(id => block(id, b, optsMap[id], ctx));
+    const out = [];
+    out.push('# ROL');
+    if (kind === 'single') out.push(`Actúa como ${blocks[0].role}.`);
+    else out.push('Actúa como un equipo creativo integrado por: ' + blocks.map(x => x.role).join('; ') + '. Trabajad de forma coordinada y entregad un único resultado coherente.');
+    out.push('');
+    out.push('# OBJETIVO');
+    if (kind === 'single') { const t = D.tech(ids[0]); out.push(`Diseñar y construir la landing page de «${brand(b)}» (${topic(b)}) aplicando la técnica ${t.num} del tratado de diseño de landing pages con IA, para que el visitante complete esta acción: ${g.label.toLowerCase()}.`); }
+    else out.push(`Diseñar y construir la landing page de «${brand(b)}» (${topic(b)}) combinando ${ids.length} técnicas avanzadas para romper el «promedio estadístico» de la IA, con una meta de conversión clara: ${g.label.toLowerCase()}.`);
+    out.push('');
+    out.push(context(b));
+    if (dna) {
+      out.push('');
+      out.push(`# ADN DE DISEÑO · SEMILLA «${dna.seed}»`);
+      LF.seed.promptLines(dna).forEach(l => out.push(l));
+    }
+    out.push('');
+    out.push(`# SECTOR Y VOCABULARIO VISUAL · ${pack.label}`);
+    sectorLines(pack, b).forEach(l => out.push(l));
+    out.push('');
+    out.push('# ARQUITECTURA DE LA PÁGINA');
+    archLines(pack, ids, optsMap, dna).forEach(l => out.push(l));
+    out.push('');
+    if (kind === 'single') {
+      const t = D.tech(ids[0]), x = blocks[0];
+      out.push(`# [T${t.num}] ${t.name.toUpperCase()} — Fase ${D.phases[t.phase].label}`);
+      out.push(`Por qué: ${t.theory}`);
+      x.instructions.forEach(i => out.push(`- ${i}`));
+    } else {
+      out.push('# ESTRATEGIA COMBINADA');
+      let n = 0;
+      ['descubrir', 'definir', 'entregar'].forEach(ph => {
+        const bs = blocks.filter(x => x.phase === ph);
+        if (!bs.length) return;
+        n++;
+        out.push('');
+        out.push(`## FASE ${n} · ${D.phases[ph].label.toUpperCase()} — ${D.phases[ph].desc}`);
+        bs.forEach(x => {
+          out.push(`### [T${x.num}] ${x.name}`);
+          x.instructions.forEach(i => out.push(`- ${i}`));
+        });
+      });
+      const syn = synergies(ids, optsMap);
+      if (syn.length) { out.push(''); out.push('# SINERGIAS ENTRE TÉCNICAS'); syn.forEach(s => out.push(`- ${s}`)); }
+      out.push('');
+      out.push('# ORDEN DE EJECUCIÓN');
+      const steps = [];
+      if (ids.some(i => D.tech(i).phase === 'descubrir')) steps.push('Descubrir: fija la semilla estética y el perfil psicológico antes de escribir o maquetar.');
+      if (ids.some(i => D.tech(i).phase === 'definir')) steps.push('Definir: ordena la jerarquía de la información y recorta todo lo que no convierte.');
+      steps.push('Entregar: produce copy, activos y código final.');
+      if (ids.includes('subagents')) steps.push(`Bucle crítico: el Agente Crítico revisa el resultado ${(optsMap.subagents || {}).iterations || 2} veces y solo se entrega la versión corregida.`);
+      steps.forEach((s, i) => out.push(`${i + 1}. ${s}`));
+    }
+    const il = imagesLines(pack, b, ids, optsMap, dna);
+    if (il.length) { out.push(''); out.push('# ILUSTRACIONES DE ESTA LANDING (dibujadas en código)'); il.forEach(l => out.push(l)); }
+    const pl = protocolLines(pack, ids, optsMap, b);
+    if (pl.length) { out.push(''); out.push('# PROTOCOLO DE ACTIVOS (los resuelve la app al mostrar la página)'); pl.forEach(l => out.push(`- ${l}`)); }
+    out.push('');
+    out.push(kind === 'single' ? '# RESTRICCIONES' : '# RESTRICCIONES CONSOLIDADAS');
+    const cons = [];
+    blocks.forEach(x => x.constraints.forEach(c => { if (!cons.includes(c)) cons.push(c); }));
+    cons.push('No inventes datos, cifras, precios ni testimonios que no estén en el contexto; si faltan, deja marcadores claros [dato por confirmar].');
+    cons.forEach(c => out.push(`- ${c}`));
+    out.push('');
+    out.push(kind === 'single' ? '# ENTREGABLE' : '# ENTREGABLES');
+    out.push(`- ${deliverableFormat(b)}`);
+    blocks.forEach(x => x.deliverables.forEach(d => out.push(kind === 'single' ? `- ${d}` : `- [T${x.num}] ${d}`)));
+    out.push('');
+    out.push('# CHECKLIST DE CALIDAD (verifícalo antes de responder)');
+    checklistLines(pack, b, g, blocks.map(x => x.name)).forEach(l => out.push(`- ${l}`));
+    return { text: out.join('\n'), dna };
+  }
+
   /* ---------- API pública ---------- */
   function single(id, b, o) {
     const t = D.tech(id);
-    const r = block(id, b, o, { seeds: [], negative: false });
-    const g = goal(b);
-    const txt = [
-      '# ROL',
-      `Actúa como ${r.role}.`,
-      '',
-      '# OBJETIVO',
-      `Diseñar y construir la landing page de «${brand(b)}» (${topic(b)}) aplicando la técnica ${t.num} del tratado de diseño de landing pages con IA, para que el visitante complete esta acción: ${g.label.toLowerCase()}.`,
-      '',
-      context(b),
-      '',
-      `# [T${t.num}] ${t.name.toUpperCase()} — Fase ${D.phases[t.phase].label}`,
-      `Por qué: ${t.theory}`,
-      ...r.instructions.map(i => `- ${i}`),
-      '',
-      '# RESTRICCIONES',
-      ...(r.constraints.length ? r.constraints : []).map(c => `- ${c}`),
-      '- No inventes datos, cifras ni testimonios que no estén en el contexto; si faltan, deja marcadores claros [dato por confirmar].',
-      '',
-      '# ENTREGABLE',
-      `- ${deliverableFormat(b)}`,
-      ...r.deliverables.map(d => `- ${d}`)
-    ].join('\n');
+    const opts = { [id]: Object.assign(D.defaultOpts(id), o || {}) };
+    const r = assemble('single', [id], b, opts);
     return {
       kind: 'single', techniques: [id], title: `T${t.num} · ${t.name}`,
-      text: txt, brief: JSON.parse(JSON.stringify(b)), opts: { [id]: Object.assign(D.defaultOpts(id), o || {}) }
+      text: r.text, brief: JSON.parse(JSON.stringify(b)), opts, seed: r.dna ? r.dna.seed : ''
     };
   }
 
   function combined(ids, b, optsMap) {
     ids = ROLE_ORDER.filter(x => ids.includes(x));
     optsMap = optsMap || {};
-    const ctx = { seeds: ids.includes('seed') ? ((optsMap.seed || {}).seeds || D.defaultOpts('seed').seeds) : [], negative: ids.includes('negative') };
-    const blocks = ids.map(id => block(id, b, optsMap[id], ctx));
-    const g = goal(b);
-    const out = [];
-    out.push('# ROL');
-    out.push('Actúa como un equipo creativo integrado por: ' + blocks.map(x => x.role).join('; ') + '. Trabajad de forma coordinada y entregad un único resultado coherente.');
-    out.push('');
-    out.push('# OBJETIVO');
-    out.push(`Diseñar y construir la landing page de «${brand(b)}» (${topic(b)}) combinando ${ids.length} técnicas avanzadas para romper el «promedio estadístico» de la IA, con una meta de conversión clara: ${g.label.toLowerCase()}.`);
-    out.push('');
-    out.push(context(b));
-    out.push('');
-    out.push('# ESTRATEGIA COMBINADA');
-    let n = 0;
-    ['descubrir', 'definir', 'entregar'].forEach(ph => {
-      const bs = blocks.filter(x => x.phase === ph);
-      if (!bs.length) return;
-      n++;
-      out.push('');
-      out.push(`## FASE ${n} · ${D.phases[ph].label.toUpperCase()} — ${D.phases[ph].desc}`);
-      bs.forEach(x => {
-        out.push(`### [T${x.num}] ${x.name}`);
-        x.instructions.forEach(i => out.push(`- ${i}`));
-      });
-    });
-    const syn = synergies(ids, optsMap);
-    if (syn.length) {
-      out.push('');
-      out.push('# SINERGIAS ENTRE TÉCNICAS');
-      syn.forEach(s => out.push(`- ${s}`));
-    }
-    out.push('');
-    out.push('# ORDEN DE EJECUCIÓN');
-    const steps = [];
-    if (ids.some(i => D.tech(i).phase === 'descubrir')) steps.push('Descubrir: fija la semilla estética y el perfil psicológico antes de escribir o maquetar.');
-    if (ids.some(i => D.tech(i).phase === 'definir')) steps.push('Definir: ordena la jerarquía de la información y recorta todo lo que no convierte.');
-    steps.push('Entregar: produce copy, activos y código final.');
-    if (ids.includes('subagents')) steps.push(`Bucle crítico: el Agente Crítico revisa el resultado ${(optsMap.subagents || {}).iterations || 2} veces y solo se entrega la versión corregida.`);
-    steps.forEach((s, i) => out.push(`${i + 1}. ${s}`));
-    out.push('');
-    out.push('# RESTRICCIONES CONSOLIDADAS');
-    const cons = [];
-    blocks.forEach(x => x.constraints.forEach(c => { if (!cons.includes(c)) cons.push(c); }));
-    cons.push('No inventes datos, cifras ni testimonios que no estén en el contexto; si faltan, deja marcadores claros [dato por confirmar].');
-    cons.forEach(c => out.push(`- ${c}`));
-    out.push('');
-    out.push('# ENTREGABLES');
-    out.push(`- ${deliverableFormat(b)}`);
-    blocks.forEach(x => x.deliverables.forEach(d => out.push(`- [T${x.num}] ${d}`)));
-    out.push('');
-    out.push('# CHECKLIST DE CALIDAD (verifícalo antes de responder)');
-    out.push(`- ¿Se entiende qué es ${brand(b)} y para quién en menos de 5 segundos?`);
-    out.push(`- ¿Hay un único CTA primario («${clean(b.cta) || g.cta}» o su versión mejorada) visible sin hacer scroll?`);
-    blocks.forEach(x => out.push(`- ¿Se nota la técnica «${x.name}» en el resultado final?`));
+    const full = ids.reduce((acc, id) => (acc[id] = Object.assign(D.defaultOpts(id), optsMap[id] || {}), acc), {});
+    const r = assemble('combined', ids, b, full);
     return {
       kind: 'combined', techniques: ids, title: 'Combinado · ' + ids.map(i => 'T' + D.tech(i).num).join(' + '),
-      text: out.join('\n'), brief: JSON.parse(JSON.stringify(b)),
-      opts: ids.reduce((acc, id) => (acc[id] = Object.assign(D.defaultOpts(id), optsMap[id] || {}), acc), {})
+      text: r.text, brief: JSON.parse(JSON.stringify(b)), opts: full, seed: r.dna ? r.dna.seed : ''
     };
   }
 
@@ -360,5 +435,5 @@ LF.prompts = (function () {
     return { value: Math.max(0, Math.min(100, Math.round(s))), tips };
   }
 
-  return { single, combined, parse, score, context, imagePrompts, videoPrompt, lines, benefitTitles, objectionList };
+  return { single, combined, parse, score, context, imagePrompts, videoPrompt, lines, benefitTitles, objectionList, packOf, dnaOf, visualRule };
 })();

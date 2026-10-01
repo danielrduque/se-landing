@@ -14,19 +14,7 @@ LF.data = (function () {
   };
 
   /* ---------- Semillas de estilo (técnica 1) ---------- */
-  const seeds = [
-    { id: 'bauhaus', name: 'Minimalismo funcional Bauhaus', traits: 'formas geométricas puras, colores primarios, retícula asimétrica' },
-    { id: 'patent50', name: 'Diagramas de patentes de los años 50', traits: 'líneas técnicas, cotas, etiquetas "FIG.", fondo tipo blueprint' },
-    { id: 'swiss', name: 'Estilo tipográfico suizo', traits: 'retícula estricta, tipografía grotesca enorme, rojo puro como acento' },
-    { id: 'brutalism', name: 'Brutalismo web', traits: 'bordes gruesos, sombras duras, tipografía mono, crudeza honesta' },
-    { id: 'editorial70', name: 'Revista editorial de los 70', traits: 'serif expresiva, columnas de revista, tonos tierra cálidos' },
-    { id: 'artdeco', name: 'Art Déco', traits: 'simetría, abanicos y rayos dorados, contraste negro y oro' },
-    { id: 'japanma', name: 'Ma japonés (espacio negativo)', traits: 'vacío intencional, un solo acento bermellón, calma' },
-    { id: 'fibonacci', name: 'Proporción áurea / espiral de Fibonacci', traits: 'proporción 1:1.618, flujo orgánico, espiral como guía del scroll' },
-    { id: 'memphis', name: 'Grupo Memphis (años 80)', traits: 'formas lúdicas, patrones, colores saturados, humor visual' },
-    { id: 'phosphor', name: 'Terminal de fósforo verde', traits: 'monocromo oscuro, acento verde fósforo, estética de consola' },
-    { id: 'didot', name: 'Lujo editorial Didot', traits: 'serif de alto contraste, blanco roto, bronce, silencio visual' }
-  ];
+  const seeds = LF.seedStyles;   // 47 estilos (js/seeds.js); la «semilla» numérica los combina (js/dna.js)
 
   const avoidList = [
     'Degradados púrpuras',
@@ -66,14 +54,22 @@ LF.data = (function () {
 
   const critics = ['UX', 'Psicología del comportamiento', 'CRO (conversión)', 'Accesibilidad WCAG', 'Copy y voz de marca', 'Rendimiento y SEO'];
 
-  const imageTools = ['Midjourney v6', 'DALL·E 3', 'Stable Diffusion XL', 'Flux', 'Ideogram'];
+  /* Estilos de ilustración dibujada en código (SVG + CSS). El texto es la instrucción que recibe la IA. */
   const imageStyles = {
-    'Fotografía macro': 'macro photography, selective depth of field, tactile materials',
-    '3D glassmorphism': '3D frosted glass objects, subtle light refraction, soft shadows',
-    'Ilustración editorial': 'editorial illustration, flat shapes, grain texture, limited palette',
-    'Isométrico técnico': 'isometric technical illustration, clean lines, blueprint details',
-    'Texturas abstractas': 'abstract organic textures, fluid shapes, translucent materials',
-    'Fotografía documental': 'documentary photography, film grain, natural imperfect light, real environments'
+    'Automático según la semilla': '',
+    'Plano geométrico': 'ilustración plana con formas geométricas simples, sin contornos y con colores sólidos de la paleta',
+    'Línea fina (line art)': 'dibujo de línea continua fina (trazo uniforme de 2 px), sin relleno salvo un único acento de color',
+    'Isométrico': 'ilustración isométrica con cada volumen en tres tonos de la paleta (cara superior, izquierda y derecha)',
+    'Collage de recortes': 'formas recortadas y superpuestas con bordes irregulares y sombras de papel',
+    'Plano técnico (blueprint)': 'dibujo técnico con cotas, líneas de eje y etiquetas «FIG. n»',
+    'Risografía de 2 tintas': 'dos tintas superpuestas con trama de puntos (halftone) y ligero desalineado de impresión',
+    'Pixel art': 'ilustración en cuadrícula de píxeles con la paleta reducida',
+    'Acuarela vectorial': 'manchas translúcidas de bordes suaves con detalles lineales encima'
+  };
+  const imageDetail = {
+    'Sencillo': 'unos 8 elementos por ilustración, formas muy claras',
+    'Detallado': 'al menos 15 elementos por ilustración: capas de fondo, forma principal, sombras, detalles y brillos',
+    'Muy detallado': 'más de 30 elementos por ilustración: texturas con patrones SVG, sombras suaves, detalles pequeños, reflejos y profundidad por capas'
   };
   const videoTools = ['Runway', 'Luma Dream Machine', 'Sora', 'Kling', 'Pika'];
   const videoTypes = ['Fondo cinemático para el hero', 'Demo de producto animada', 'Loop abstracto de marca', 'Escena de uso real'];
@@ -103,7 +99,12 @@ LF.data = (function () {
       risk: 'Convergencia visual genérica.',
       theory: 'Sin una "semilla" de estilo, la IA recurre a lo más probable de su entrenamiento: degradados púrpuras, texto a la izquierda y gráfico a la derecha. Forzar referencias de industrias adyacentes o estilos históricos desvía ese sesgo hacia direcciones nuevas.',
       options: [
-        { key: 'seeds', type: 'chips', label: 'Semillas de estilo (elige 1 o 2)', choices: seeds.map(s => ({ value: s.id, label: s.name })), max: 2, default: ['bauhaus'] },
+        { key: 'seed', type: 'hidden', label: 'Semilla del diseño', default: '' },
+        { key: 'wild', type: 'hidden', label: 'Nivel de locura', default: '' },
+        { key: 'twist', type: 'hidden', label: 'Variante de estilo', default: '' },
+        { key: 'colors', type: 'hidden', label: 'Colores', default: null },
+        { key: 'fonts', type: 'hidden', label: 'Tipografías', default: null },
+        { key: 'seeds', type: 'chips', label: 'Estilos (elige 1 o 2; una semilla los decide por ti)', choices: seeds.map(s => ({ value: s.id, label: s.name })), max: 2, default: ['bauhaus'] },
         { key: 'mix', type: 'text', label: 'Referencia adicional (opcional)', placeholder: 'p. ej. carteles de cine polaco', default: '' },
         { key: 'avoid', type: 'chips', label: 'Evitar explícitamente', choices: avoidList.map(a => ({ value: a, label: a })), default: ['Degradados púrpuras', 'Bento grids', 'Hero con texto a la izquierda e imagen a la derecha'] }
       ]
@@ -139,17 +140,16 @@ LF.data = (function () {
     },
     {
       id: 'image', num: 4, phase: 'entregar',
-      name: 'Generación de imágenes',
-      tagline: 'Activos propios y coherentes con la marca en lugar de fotos de stock.',
-      objective: 'Crear activos únicos de alta fidelidad.',
-      risk: 'Uso de stock impersonal.',
-      theory: 'Las imágenes de stock delatan una landing mediocre. Generar texturas, ilustraciones y hero-images coherentes con la tipografía y el color transmite profesionalismo y confianza.',
+      name: 'Generación de imágenes (dibujadas en código)',
+      tagline: 'Ilustraciones propias hechas con SVG y CSS, coherentes con la marca y con el tema.',
+      objective: 'Crear activos únicos sin depender de fotos ni de servicios externos.',
+      risk: 'Uso de stock impersonal o de formas abstractas vacías.',
+      theory: 'Las imágenes de stock delatan una landing mediocre. Dibujar las ilustraciones directamente en código (SVG + CSS) con la paleta y la retícula de la semilla garantiza coherencia, peso mínimo, nitidez en cualquier pantalla y cero dependencias. La calidad depende de la descripción: qué objeto, qué estilo y cuánto detalle.',
       options: [
-        { key: 'tool', type: 'select', label: 'Herramienta', choices: imageTools.map(t => ({ value: t, label: t })), default: 'Midjourney v6' },
-        { key: 'style', type: 'select', label: 'Estilo visual', choices: Object.keys(imageStyles).map(k => ({ value: k, label: k })), default: 'Texturas abstractas' },
-        { key: 'ratio', type: 'select', label: 'Relación de aspecto del hero', choices: ['16:9', '21:9', '4:5', '1:1'].map(r => ({ value: r, label: r })), default: '16:9' },
-        { key: 'count', type: 'range', label: 'Número de activos', min: 1, max: 6, default: 3 },
-        { key: 'light', type: 'text', label: 'Iluminación', placeholder: 'p. ej. luz de estudio suave', default: 'luz de estudio suave' }
+        { key: 'style', type: 'select', label: 'Estilo de ilustración', choices: Object.keys(imageStyles).map(k => ({ value: k, label: k })), default: 'Automático según la semilla' },
+        { key: 'detail', type: 'select', label: 'Nivel de detalle', choices: Object.keys(imageDetail).map(k => ({ value: k, label: k })), default: 'Detallado' },
+        { key: 'count', type: 'range', label: 'Número de ilustraciones', min: 1, max: 8, default: 4 },
+        { key: 'animate', type: 'toggle', label: 'Micro-animaciones CSS (flotar, dibujar el trazo)', default: true }
       ]
     },
     {
@@ -218,7 +218,7 @@ LF.data = (function () {
   ];
 
   /* ---------- Opciones del brief ---------- */
-  const industries = ['SaaS / Software', 'E-commerce', 'Educación / Cursos', 'Salud y bienestar', 'Fintech / Finanzas', 'Ciberseguridad', 'Consultoría / Servicios B2B', 'Restaurante / Gastronomía', 'Inmobiliaria', 'Turismo / Viajes', 'Biotecnología / Ciencia', 'Moda y lujo', 'Agencia creativa', 'ONG / Causa social', 'Eventos', 'App móvil', 'Otro'];
+  const industries = ['SaaS / Software', 'E-commerce', 'Tienda de ropa / Moda', 'Calzado y accesorios', 'Belleza y cosmética', 'Hogar y decoración', 'Deporte y fitness', 'Educación / Cursos', 'Salud y bienestar', 'Fintech / Finanzas', 'Ciberseguridad', 'Consultoría / Servicios B2B', 'Restaurante / Gastronomía', 'Inmobiliaria', 'Turismo / Viajes', 'Biotecnología / Ciencia', 'Moda y lujo', 'Agencia creativa', 'ONG / Causa social', 'Eventos', 'App móvil', 'Otro'];
 
   const goals = {
     leads: { label: 'Captar clientes potenciales (leads)', cta: 'Solicitar información', micro: 'Recibe tu propuesta en 24 horas', reassure: 'Sin compromiso · Respondemos en menos de 24 h', fields: ['nombre', 'email', 'telefono', 'empresa'] },
@@ -238,7 +238,7 @@ LF.data = (function () {
   };
 
   const emptyBrief = {
-    tema: '', marca: '', industria: 'SaaS / Software', publico: '', problema: '', propuesta: '',
+    tema: '', marca: '', industria: '', publico: '', problema: '', propuesta: '',
     objetivo: 'leads', cta: '', beneficios: '', objeciones: '', prueba: '', oferta: '',
     tono: 'Profesional y confiable', idioma: 'Español', formato: 'html',
     colorAuto: true, color1: '#E4572E', color2: '#1F7A6D'
@@ -274,7 +274,7 @@ LF.data = (function () {
         tono: 'Sofisticado y exclusivo', idioma: 'Español', formato: 'html', colorAuto: true, color1: '#9C7A3C', color2: '#121212'
       },
       techniques: ['seed', 'ambitious', 'image', 'human'],
-      opts: { seed: { seeds: ['didot'] }, ambitious: { awareness: '4', biases: ['Escasez', 'Efecto de exclusividad', 'Prueba social'] }, human: { voice: 'Sofisticada y reservada' }, image: { style: 'Fotografía macro' } },
+      opts: { seed: { seeds: ['didot'] }, ambitious: { awareness: '4', biases: ['Escasez', 'Efecto de exclusividad', 'Prueba social'] }, human: { voice: 'Sofisticada y reservada' }, image: { style: 'Línea fina (line art)' } },
       rating: 5
     },
     {
@@ -335,7 +335,187 @@ LF.data = (function () {
         tono: 'Técnico y preciso', idioma: 'Español', formato: 'html', colorAuto: true, color1: '#1F6FB2', color2: '#E8F1FA'
       },
       techniques: ['seed', 'image', 'subagents', 'ambitious'],
-      opts: { seed: { seeds: ['swiss'] }, image: { style: 'Texturas abstractas', tool: 'Midjourney v6' }, ambitious: { framework: '4P', awareness: '3', biases: ['Autoridad', 'Prueba social'] } },
+      opts: { seed: { seeds: ['swiss'] }, image: { style: 'Plano técnico (blueprint)' }, ambitious: { framework: '4P', awareness: '3', biases: ['Autoridad', 'Prueba social'] } },
+      rating: 4
+    },
+    {
+      id: 'ex-ropa',
+      label: 'Tienda de ropa',
+      brief: {
+        tema: 'Tienda online de ropa urbana unisex de algodón orgánico', marca: 'Urdimbre', industria: 'Tienda de ropa / Moda',
+        publico: 'jóvenes de 20 a 35 años que quieren ropa cómoda, duradera y sin logos gigantes', problema: 'la ropa barata se deforma al segundo lavado y la buena cuesta demasiado',
+        propuesta: 'Básicos de algodón orgánico que aguantan cientos de lavados',
+        objetivo: 'sale', cta: 'Ver la colección', beneficios: 'Algodón orgánico de 280 g: no se deforma ni se transparenta\nTallas reales: guía con medidas y cambios gratis\nEdición corta: cada tanda se agota y no se repite',
+        objeciones: '¿Y si no me queda bien? | Cambio de talla gratis en 30 días, sin preguntas.\n¿Se encoge al lavarla? | Viene prelavada: no cambia de tamaño.', prueba: '+4.000 pedidos entregados · 4,8/5 en reseñas · Envío con seguimiento', oferta: '10 % en tu primer pedido',
+        tono: 'Enérgico y joven', idioma: 'Español', formato: 'html', colorAuto: true, color1: '#E4572E', color2: '#1F7A6D'
+      },
+      techniques: ['seed', 'ambitious', 'image', 'human'],
+      opts: { seed: { seed: '48213977' }, image: { detail: 'Detallado' }, ambitious: { framework: 'AIDA', awareness: '3', biases: ['Prueba social', 'Escasez', 'Inoculación'] }, human: { voice: 'Directa y cercana' } },
+      rating: 5
+    },
+    {
+      id: 'ex-bruma',
+      label: 'Streetwear (caos total)',
+      brief: {
+        tema: 'Marca de ropa streetwear de ediciones limitadas', marca: 'Bruma Club', industria: 'Tienda de ropa / Moda',
+        publico: 'jóvenes de 16 a 28 años que siguen la cultura urbana y odian vestirse igual que todos', problema: 'las marcas grandes sacan lo mismo para todo el mundo y en la calle te cruzas tres iguales',
+        propuesta: 'Sudaderas y camisetas en tandas de 100 piezas. Cuando se agotan, no vuelven.',
+        objetivo: 'sale', cta: 'Entrar al drop', beneficios: 'Tandas de 100 piezas: nadie más lleva la tuya\nAlgodón pesado de 380 g: cae bien y dura años\nEstampados de artistas locales: cada drop firma uno distinto',
+        objeciones: '¿Y si se agota antes de que llegue? | Avisamos por correo 24 horas antes de cada drop.\n¿Las tallas son grandes? | Corte oversize: si dudas, pide tu talla habitual.', prueba: '12 drops agotados · +9.000 seguidores · Envíos a todo el país', oferta: 'Próximo drop el viernes',
+        tono: 'Enérgico y joven', idioma: 'Español', formato: 'html', colorAuto: true, color1: '#E4572E', color2: '#1F7A6D'
+      },
+      techniques: ['seed', 'negative', 'human', 'image'],
+      opts: { seed: { seed: 'chaos-3', wild: 3 }, human: { voice: 'Irreverente con humor' }, image: { detail: 'Detallado' } },
+      rating: 5
+    },
+    {
+      id: 'ex-zapatos',
+      label: 'Zapatillas artesanales',
+      brief: {
+        tema: 'Zapatillas de cuero hechas a mano por encargo', marca: 'Paso Norte', industria: 'Calzado y accesorios',
+        publico: 'adultos de 28 a 50 años que valoran lo hecho a mano y quieren calzado que se pueda reparar', problema: 'las zapatillas de moda se despegan en un año y no tienen arreglo',
+        propuesta: 'Zapatillas de cuero cosidas a mano que se resuelan en vez de tirarse',
+        objetivo: 'sale', cta: 'Elegir mis zapatillas', beneficios: 'Cuero curtido al vegetal: se adapta a tu pie con el uso\nSuela cosida, no pegada: cualquier zapatero puede cambiarla\nHechas en tu talla: medimos tu pie por videollamada',
+        objeciones: '¿Tardan mucho? | Cada par tarda tres semanas en el taller y te avisamos en cada etapa.\n¿Y si no me quedan? | Las ajustamos sin coste o te devolvemos el dinero.', prueba: '2.300 pares entregados · 4,9/5 en reseñas · Taller en funcionamiento desde 2016', oferta: 'Resuelado gratis el primer año',
+        tono: 'Cálido y humano', idioma: 'Español', formato: 'html', colorAuto: true, color1: '#8A4B2A', color2: '#2E4A3F'
+      },
+      techniques: ['seed', 'ambitious', 'image', 'human'],
+      opts: { seed: { seed: 'suela-27', wild: 1 }, ambitious: { framework: 'BAB', awareness: '3', biases: ['Autoridad', 'Prueba social', 'Inoculación'] }, human: { voice: 'Directa y cercana' }, image: { detail: 'Detallado' } },
+      rating: 4
+    },
+    {
+      id: 'ex-skin',
+      label: 'Cosmética (sobrio)',
+      brief: {
+        tema: 'Sérum facial de vitamina C estable para piel sensible', marca: 'Aurora Skin', industria: 'Belleza y cosmética',
+        publico: 'mujeres y hombres de 25 a 45 años con piel sensible que han reaccionado mal a otros sérums', problema: 'los sérums de vitamina C suelen irritar o se oxidan a las pocas semanas',
+        propuesta: 'Vitamina C que no irrita y se mantiene estable hasta el último día',
+        objetivo: 'sale', cta: 'Probar el sérum', beneficios: 'Fórmula estable: envase opaco sin aire que evita la oxidación\nPensado para piel sensible: sin alcohol ni perfume añadido\nRutina de tres pasos: sin complicarte la mañana',
+        objeciones: '¿Me irritará? | Por eso incluimos una prueba de 30 días con devolución.\n¿En cuánto se nota? | La piel suele verse más uniforme a partir de la cuarta semana de uso constante.', prueba: 'Dermatólogos revisaron la fórmula · 4,7/5 en reseñas verificadas', oferta: 'Envío gratis en tu primer pedido',
+        tono: 'Minimalista y sereno', idioma: 'Español', formato: 'html', colorAuto: true, color1: '#C9793A', color2: '#2F4F4A'
+      },
+      techniques: ['seed', 'human', 'negative', 'image'],
+      opts: { seed: { seed: 'rocio-4', wild: 0 }, human: { voice: 'Sofisticada y reservada' }, image: { detail: 'Detallado' } },
+      rating: 4
+    },
+    {
+      id: 'ex-hogar',
+      label: 'Cerámica y hogar',
+      brief: {
+        tema: 'Cerámica artesanal para la mesa y la casa', marca: 'Barro & Lino', industria: 'Hogar y decoración',
+        publico: 'parejas jóvenes que amueblan su primer hogar y buscan piezas con carácter', problema: 'la decoración de cadena es igual en todas las casas y se nota fría',
+        propuesta: 'Piezas de cerámica y lino hechas por un taller familiar, una a una',
+        objetivo: 'sale', cta: 'Ver la colección', beneficios: 'Cada pieza es única: el esmalte nunca sale igual\nApta para el día a día: va al lavavajillas y al horno\nEmbalaje sin plástico: llega protegida en papel y lino',
+        objeciones: '¿Se rompen al enviarlas? | Las embalamos a mano y si llega dañada la reponemos sin preguntas.\n¿Combinan entre sí? | Las colecciones comparten paleta: todo encaja.', prueba: 'Taller familiar desde 2009 · +6.500 piezas enviadas', oferta: '',
+        tono: 'Cálido y humano', idioma: 'Español', formato: 'html', colorAuto: true, color1: '#B5653B', color2: '#6B7F5E'
+      },
+      techniques: ['seed', 'image', 'human'],
+      opts: { seed: { seed: 'arcilla-10', wild: 1 }, human: { voice: 'Inspiradora y serena' }, image: { detail: 'Detallado' } },
+      rating: 4
+    },
+    {
+      id: 'ex-cafe',
+      label: 'Café de especialidad',
+      brief: {
+        tema: 'Cafetería y tostadora de café de especialidad', marca: 'Fuego Lento', industria: 'Restaurante / Gastronomía',
+        publico: 'vecinos y trabajadores del barrio que quieren buen café sin ceremonias', problema: 'el buen café suele venir con precios de lujo y baristas que te hacen sentir que no sabes pedir',
+        propuesta: 'Café tostado esta semana, servido sin pretensiones',
+        objetivo: 'booking', cta: 'Reservar mesa', beneficios: 'Tostado cada martes: nunca bebes café viejo\nGranos de fincas que conocemos por su nombre\nPanadería del día: horneada en el local cada mañana',
+        objeciones: '¿Es caro? | El espresso cuesta lo mismo que en cualquier cadena.\n¿Puedo trabajar con el portátil? | Sí, hay enchufes y wifi todo el día excepto el brunch del domingo.', prueba: '4,8 en Google con 1.200 reseñas · Tostadores locales desde 2018', oferta: 'Menú de desayuno 9 €',
+        tono: 'Cercano y amigable', idioma: 'Español', formato: 'html', colorAuto: true, color1: '#7A3E1D', color2: '#E0B050'
+      },
+      techniques: ['seed', 'ambitious', 'image', 'human'],
+      opts: { seed: { seed: 'grano-4', wild: 2 }, ambitious: { framework: 'AIDA', awareness: '4', biases: ['Prueba social', 'Reciprocidad'] }, human: { voice: 'Directa y cercana' }, image: { detail: 'Detallado' } },
+      rating: 4
+    },
+    {
+      id: 'ex-ruta',
+      label: 'Viajes a la Patagonia',
+      brief: {
+        tema: 'Viajes en grupo pequeño por la Patagonia', marca: 'Ruta Sur', industria: 'Turismo / Viajes',
+        publico: 'viajeros de 30 a 55 años que quieren naturaleza sin multitudes ni tours masivos', problema: 'los tours populares van llenos y pasan por los miradores a toda prisa',
+        propuesta: 'Nueve días por la Patagonia en grupos de máximo ocho personas',
+        objetivo: 'booking', cta: 'Ver fechas', beneficios: 'Grupos de máximo 8: guía local que conoce cada sendero\nRuta a contramano de los tours masivos\nTodo incluido: alojamiento, traslados y comidas',
+        objeciones: '¿Hace falta estar en forma? | Hay caminatas de nivel medio; la ruta se adapta al ritmo del grupo.\n¿Y si cancelo? | Devolvemos el depósito hasta 60 días antes de la salida.', prueba: '14 salidas realizadas · 4,9/5 de los viajeros · Guías certificados', oferta: 'Desde 2.450 € por persona',
+        tono: 'Cálido y humano', idioma: 'Español', formato: 'html', colorAuto: true, color1: '#1F6F8B', color2: '#E07A3F'
+      },
+      techniques: ['seed', 'ambitious', 'image', 'human'],
+      opts: { seed: { seed: 'ruta-24', wild: 1 }, ambitious: { framework: 'StoryBrand', awareness: '2', biases: ['Escasez', 'Prueba social'] }, human: { voice: 'Inspiradora y serena' }, image: { detail: 'Detallado' } },
+      rating: 4
+    },
+    {
+      id: 'ex-casa',
+      label: 'Inmobiliaria boutique',
+      brief: {
+        tema: 'Apartamentos nuevos en un barrio céntrico y tranquilo', marca: 'Casa Norte', industria: 'Inmobiliaria',
+        publico: 'parejas y familias jóvenes que compran su primera vivienda', problema: 'comprar piso asusta: hay letra pequeña, gastos que no se ven y nadie explica el proceso',
+        propuesta: 'Apartamentos listos para entrar, con el proceso de compra explicado paso a paso',
+        objetivo: 'booking', cta: 'Agendar visita', beneficios: 'Precio cerrado: sin gastos ocultos al firmar\nEntrega con fecha garantizada y penalización si nos retrasamos\nAsesor que te acompaña hasta recibir las llaves',
+        objeciones: '¿Y si no me dan hipoteca? | Te ayudamos a pre-aprobarla antes de reservar, sin coste.\n¿Puedo ver el piso antes de comprar? | Hay un apartamento piloto amueblado abierto de lunes a sábado.', prueba: '18 años construyendo · 640 familias ya viven en nuestros edificios', oferta: 'Desde 1.950 €/m²',
+        tono: 'Profesional y confiable', idioma: 'Español', formato: 'html', colorAuto: true, color1: '#2B4C7E', color2: '#C9A227'
+      },
+      techniques: ['seed', 'subagents', 'subtractive', 'human'],
+      opts: { seed: { seed: 'cimiento-28', wild: 0 }, human: { voice: 'Técnica con calidez' } },
+      rating: 4
+    },
+    {
+      id: 'ex-curso',
+      label: 'Curso de programación',
+      brief: {
+        tema: 'Curso intensivo de programación para adultos que cambian de carrera', marca: 'Taller Código', industria: 'Educación / Cursos',
+        publico: 'adultos de 28 a 45 años que trabajan en otro sector y quieren pasarse a tecnología', problema: 'los cursos online se abandonan a la tercera semana y nadie te ayuda con lo que te atascas',
+        propuesta: 'Aprende a programar en 12 semanas con un mentor que revisa tu código cada semana',
+        objetivo: 'event', cta: 'Reservar mi cupo', beneficios: 'Mentor asignado: revisa tu código cada semana, no un foro\nClases por la tarde: compatible con tu trabajo actual\nProyecto final para tu portafolio: lo presentas ante empresas',
+        objeciones: '¿Y si no tengo base? | El curso empieza desde cero y hay una semana de nivelación.\n¿Sirve para encontrar trabajo? | El 70 % de los últimos egresados recibió oferta en seis meses [dato por confirmar].', prueba: '420 egresados · 4,8/5 de los alumnos · Alianza con 35 empresas', oferta: 'Cupo limitado: 24 por cohorte',
+        tono: 'Cercano y amigable', idioma: 'Español', formato: 'html', colorAuto: true, color1: '#2F6BFF', color2: '#FFB020'
+      },
+      techniques: ['seed', 'ambitious', 'subagents', 'human'],
+      opts: { seed: { seed: 'aula-11', wild: 2 }, ambitious: { framework: 'PAS', awareness: '2', biases: ['Escasez', 'Inoculación', 'Prueba social'] }, human: { voice: 'Directa y cercana' } },
+      rating: 4
+    },
+    {
+      id: 'ex-box',
+      label: 'Gimnasio de boxeo (caos)',
+      brief: {
+        tema: 'Gimnasio de boxeo para principiantes en la ciudad', marca: 'Pulso Box', industria: 'Deporte y fitness',
+        publico: 'adultos de 22 a 45 años que quieren ponerse en forma sin ir a un gimnasio frío y aburrido', problema: 'los gimnasios de máquinas aburren y la gente deja de ir al mes',
+        propuesta: 'Boxeo en grupo de 45 minutos: sudas, te diviertes y vuelves mañana',
+        objetivo: 'booking', cta: 'Reservar clase de prueba', beneficios: 'Primera clase sin nivel previo: te enseñamos desde cero\nGrupos de 12: el entrenador te corrige cada golpe\nSin permanencia: pagas mes a mes y cancelas cuando quieras',
+        objeciones: '¿Tengo que pelear? | No: es entrenamiento con saco y técnica, sin contacto.\n¿Y si estoy fuera de forma? | Cada ejercicio tiene versión suave y el ritmo lo marcas tú.', prueba: '+600 socios activos · 4,9/5 en reseñas · Entrenadores con licencia', oferta: 'Primera clase gratis',
+        tono: 'Enérgico y joven', idioma: 'Español', formato: 'html', colorAuto: true, color1: '#E03A1E', color2: '#111111'
+      },
+      techniques: ['seed', 'negative', 'human'],
+      opts: { seed: { seed: 'ring-33', wild: 3 }, human: { voice: 'Irreverente con humor' } },
+      rating: 4
+    },
+    {
+      id: 'ex-ong',
+      label: 'ONG de reforestación',
+      brief: {
+        tema: 'Organización que reforesta bosque nativo con comunidades locales', marca: 'Raíces Vivas', industria: 'ONG / Causa social',
+        publico: 'personas de 25 a 60 años que quieren ayudar al medio ambiente y no saben si sus donaciones llegan', problema: 'muchas campañas de plantar árboles no dicen cuántos sobreviven ni dónde están',
+        propuesta: 'Cada árbol que financias tiene coordenadas, nombre de quien lo cuida y seguimiento anual',
+        objetivo: 'leads', cta: 'Plantar mi primer árbol', beneficios: 'Seguimiento por coordenadas: ves tu árbol en el mapa\nEspecies nativas: no plantamos monocultivos\nComunidades locales contratadas: cada árbol da empleo',
+        objeciones: '¿Cuánto llega de verdad al bosque? | El 82 % de cada donación va directo a plantación y cuidado [dato por confirmar].\n¿Cómo sé que sobreviven? | Medimos la supervivencia cada año y publicamos el informe.', prueba: '38.000 árboles plantados · 14 comunidades · Auditoría externa anual', oferta: 'Desde 8 € por árbol',
+        tono: 'Cálido y humano', idioma: 'Español', formato: 'html', colorAuto: true, color1: '#2F6B3B', color2: '#D98A2B'
+      },
+      techniques: ['seed', 'ambitious', 'human', 'negative'],
+      opts: { seed: { seed: 'raiz-18', wild: 1 }, ambitious: { framework: 'BAB', awareness: '2', biases: ['Autoridad', 'Prueba social', 'Inoculación'] }, human: { voice: 'Inspiradora y serena' } },
+      rating: 4
+    },
+    {
+      id: 'ex-crm',
+      label: 'Software para pymes',
+      brief: {
+        tema: 'Software de facturación y cobros para pequeños negocios', marca: 'Cobra', industria: 'SaaS / Software',
+        publico: 'dueños de pequeños negocios y autónomos que facturan en hojas de cálculo', problema: 'perder horas persiguiendo facturas y cobros que se olvidan',
+        propuesta: 'Factura en un minuto y deja que Cobra recuerde los pagos por ti',
+        objetivo: 'trial', cta: 'Empezar gratis', beneficios: 'Facturas en un minuto: desde el móvil y con tu logo\nRecordatorios automáticos: Cobra insiste por ti con educación\nResumen del mes: sabes cuánto te deben sin abrir una hoja de cálculo',
+        objeciones: '¿Es difícil cambiar de sistema? | Importas tus clientes desde Excel en cinco minutos.\n¿Y si necesito ayuda? | Hay soporte humano por chat en horario laboral.', prueba: '7.200 negocios activos · 1,3 M de facturas emitidas [dato por confirmar]', oferta: '30 días gratis',
+        tono: 'Profesional y confiable', idioma: 'Español', formato: 'html', colorAuto: true, color1: '#0F766E', color2: '#F59E0B'
+      },
+      techniques: ['seed', 'ambitious', 'subagents', 'subtractive'],
+      opts: { seed: { seed: 'balance-24', wild: 1 }, ambitious: { framework: 'PAS', awareness: '3', biases: ['Inoculación', 'Reciprocidad'] } },
       rating: 4
     }
   ];
@@ -349,7 +529,7 @@ LF.data = (function () {
   }
 
   return {
-    phases, seeds, avoidList, frameworks, awareness, biases, critics, imageTools, imageStyles,
+    phases, seeds, avoidList, frameworks, awareness, biases, critics, imageStyles, imageDetail,
     videoTools, videoTypes, cameras, navModes, focusModes, bannedWords, visualNegatives, voices,
     techniques, presets, industries, goals, tones, languages, formats, emptyBrief, examples, defaultOpts,
     tech: id => techniques.find(t => t.id === id)

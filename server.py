@@ -47,11 +47,12 @@ RETRY_CODES = {403, 404, 429, 500, 503}
 EXHAUSTED = {}
 RECHECK_SECONDS = 3600
 BAD_KEYS = set()  # claves rechazadas por Google (inválidas o revocadas)
+LAST_GOOD = None                  # último modelo que completó una respuesta
+FINISH_RE = re.compile(rb'"finish_reason":"(?:stop|length|content_filter|tool_calls|STOP|MAX_TOKENS)"')
 # Banco de landings compartido: un archivo JSON por landing en la carpeta bank/ (se sube a git con el proyecto)
 BANK_DIR = ROOT / "bank"
 BANK_ID = re.compile(r"^[A-Za-z0-9_-]{1,40}$")
 MAX_ITEM_BYTES = 8 * 1024 * 1024
-
 
 def summary(results):
     """Resume en español por qué fallaron todos los modelos."""
@@ -167,25 +168,46 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self.wfile.write(("data: " + json.dumps(obj, ensure_ascii=False) + "\n\n").encode("utf-8"))
             self.wfile.flush()
 
+        global LAST_GOOD
+        tried_bad = []
         try:
-            upstream = self.find_upstream(payload, models, emit)
-            if upstream is None:
-                return
-            # Reenvía la respuesta del modelo en streaming, trozo a trozo
-            sent = 0
-            with upstream:
-                try:
-                    while chunk := upstream.read1(8192):
-                        self.wfile.write(chunk)
-                        self.wfile.flush()
-                        sent += len(chunk)
-                except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
-                    raise
-                except Exception as err:  # Google cortó la conexión a mitad de la respuesta
-                    print(f"  la respuesta se cortó tras {sent} bytes: {err!r}", flush=True)
-                    emit({"error": {"message": f"Google cortó la respuesta a mitad de camino ({type(err).__name__}). Vuelve a intentarlo.", "lf": True}})
+            while True:
+                cand = [m for m in models if m not in tried_bad]
+                if LAST_GOOD in cand:                      # el último modelo que terminó bien va primero
+                    cand.remove(LAST_GOOD)
+                    cand.insert(0, LAST_GOOD)
+                upstream = self.find_upstream(payload, cand, emit)
+                if upstream is None:
                     return
-            print(f"  respuesta completa: {sent} bytes", flush=True)
+                used = payload.get("model")
+                sent, finished, tail, cut = 0, False, b"", None
+                with upstream:
+                    try:
+                        while chunk := upstream.read1(8192):
+                            self.wfile.write(chunk)
+                            self.wfile.flush()
+                            sent += len(chunk)
+                            window = (tail + chunk).replace(b" ", b"")
+                            if FINISH_RE.search(window):
+                                finished = True
+                            tail = chunk[-80:]
+                    except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
+                        raise
+                    except Exception as err:  # Google cortó la conexión a mitad de la respuesta
+                        cut = repr(err)
+                if finished:
+                    LAST_GOOD = used
+                    print(f"  respuesta completa de {used}: {sent} bytes", flush=True)
+                    return
+                # La respuesta terminó sin señal de fin: Google la cortó. Se descarta y se prueba otro modelo.
+                print(f"  {used} cortó la respuesta tras {sent} bytes{' (' + cut + ')' if cut else ''}", flush=True)
+                tried_bad.append(used)
+                if len(tried_bad) >= 4 or len(tried_bad) >= len(models):
+                    self.wfile.write(b"\n\n")
+                    emit({"error": {"message": "Google cortó la respuesta varias veces seguidas (modelos gratuitos inestables ahora mismo). Vuelve a intentarlo en un minuto o usa el motor local.", "lf": True}})
+                    return
+                self.wfile.write(b"\n\n")
+                emit({"lf_restart": True, "lf_status": f"{used} cortó la respuesta a los {sent // 1024} KB. Probando otro modelo…"})
         except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
             pass  # el usuario pulsó «Detener» o cerró la pestaña
 

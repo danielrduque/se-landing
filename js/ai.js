@@ -11,8 +11,11 @@ LF.ai = (function () {
     'Construye la landing page que describe el prompt del usuario, aplicando todas las técnicas, restricciones y entregables que indique.',
     'Formato de respuesta obligatorio: responde únicamente con un documento HTML completo que empiece por <!DOCTYPE html> y termine en </html>, con CSS y JavaScript embebidos.',
     'Si el prompt pide informes, prompts de imagen/vídeo, mapas de bloques o checklists, inclúyelos como comentarios HTML dentro del documento, no como texto fuera de él.',
-    'Nunca generes imágenes ni vídeos: los prompts de imagen o vídeo que aparecen en el mensaje son solo texto para copiar en esos comentarios.',
-    'No uses imágenes externas ni bancos de fotos: crea las piezas visuales con SVG inline, CSS o canvas. Puedes cargar Google Fonts.',
+    'Nunca intentes generar archivos binarios de imágenes o vídeos: los prompts de imagen/vídeo que aparecen en el mensaje son solo texto para copiar en esos comentarios.',
+    'Sigue al pie de la letra las secciones «ADN DE DISEÑO» (paleta, tipografías, retícula), «SECTOR Y VOCABULARIO VISUAL» (qué debe verse y qué está prohibido) y «ARQUITECTURA DE LA PÁGINA» (orden y contenido de cada bloque) del prompt.',
+    'Lo visual depende del sector: una tienda muestra productos reales (prendas, envases, objetos) con nombre, precio, colores y tallas; un restaurante, platos; una inmobiliaria, inmuebles. SOLO si el sector es software usa maquetas de interfaz o dashboards. Nunca dibujes figuras geométricas abstractas, círculos aislados ni cajas vacías como sustituto de lo que se vende.',
+    'Todo lo visual (iconos, ilustraciones, productos, fotos, ejemplos de planes) debe pertenecer al negocio del brief. Jamás muestres objetos de otro sector: prendas de ropa en un gimnasio, dashboards en una tienda, etc.',
+    'Todo lo visual se DIBUJA EN CÓDIGO: SVG inline detallados (capas, sombras, detalles, viewBox) y CSS. Nunca uses fotos, <img> con URLs, Unsplash ni imágenes externas. Usa los marcadores <span data-lf-shape="TIPO"> únicamente si el «PROTOCOLO DE ACTIVOS» los define, y solo con los tipos que lista.',
     'El resultado debe ser responsive, accesible (WCAG AA) y funcionar dentro de un iframe aislado.',
     'Si el prompt pide otro formato (por ejemplo wireframe o Tailwind), entrega igualmente un HTML ejecutable que lo represente.'
   ].join('\n');
@@ -127,6 +130,7 @@ LF.ai = (function () {
     if (!res.ok) throw await httpError(res);
     let stop = null, model = cfg.model;
     await readSSE(res, ev => {
+      if (ev.lf_restart && opts.onRestart) opts.onRestart();
       if (ev.lf_status) { if (ev.lf_model) model = ev.lf_model; if (onStatus) onStatus(ev.lf_status, ev.lf_model); return; } // avisos de server.py
       if (ev.model) model = ev.model; // el servidor puede haber usado un modelo de respaldo
       const ch = ev.choices && ev.choices[0];

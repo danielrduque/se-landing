@@ -133,17 +133,26 @@ LF.engine = (function () {
     const uid = Math.random().toString(36).slice(2, 7);
 
     /* 1 · Tema visual */
-    const seedIds = T.has('seed') ? (O.seed.seeds && O.seed.seeds.length ? O.seed.seeds : ['bauhaus']) : [];
-    const themeId = seedIds[0] || 'default';
+    const baseTheme = id => { const st = D.seeds.find(x => x.id === id); return THEMES[id] ? id : (st && st.engine) || 'bauhaus'; };
+    const dna = (T.has('seed') && clean(O.seed.seed)) ? LF.seed.generate(O.seed.seed, LF.seed.optsFrom(O.seed, brief)) : null;
+    const seedIds = dna ? dna.styles : (T.has('seed') ? (O.seed.seeds && O.seed.seeds.length ? O.seed.seeds : ['bauhaus']) : []);
+    const themeId = seedIds[0] ? baseTheme(seedIds[0]) : 'default';
     const th = Object.assign({}, THEMES[themeId]);
-    if (seedIds[1] && THEMES[seedIds[1]]) {
-      const s2 = THEMES[seedIds[1]];
+    const sname = id => (D.seeds.find(s => s.id === id) || {}).name || id;
+    if (dna) {
+      Object.assign(th, LF.seed.toTheme(dna));
+      note('Semilla', `Semilla «${dna.seed}» → ${dna.title}. Paleta ${dna.palette.source}, tipografías ${dna.fonts.display} + ${dna.fonts.body}, hero «${dna.hero}», beneficios «${dna.benefits}», ${dna.shape}.`, 'ok');
+    } else if (seedIds[1]) {
+      const s2 = THEMES[baseTheme(seedIds[1])];
       th.accent = s2.primary === th.primary ? s2.accent : s2.primary;
       th.benefits = s2.benefits; th.grid = th.grid || s2.grid; th.scan = th.scan || s2.scan;
-      note('Semilla', `Fusión «${D.seeds.find(s => s.id === seedIds[0]).name}» + «${D.seeds.find(s => s.id === seedIds[1]).name}»: base de la primera, acento y sistema de beneficios de la segunda.`);
+      note('Semilla', `Fusión «${sname(seedIds[0])}» + «${sname(seedIds[1])}»: base de la primera, acento y sistema de beneficios de la segunda.`);
     }
     if (T.has('seed')) note('Semilla', `Sistema visual anclado a «${th.name}» (retícula de hero «${th.hero}»).`, 'ok');
     else note('Semilla', 'Sin semilla de estilo: el resultado cae en la estética «promedio» (degradado púrpura, texto izquierda + imagen derecha). Añade la técnica 1 para diferenciarte.', 'warn');
+
+    const pack = LF.verticals.detect(brief);
+    note('Sector', `Pack «${pack.label}» (${pack.kind === 'catalog' ? 'catálogo de producto' : pack.kind === 'ui' ? 'maquetas de interfaz' : 'escenas del negocio'}): el motor usa el vocabulario visual propio del sector, sin dashboards si no corresponden.`, 'ok');
 
     if (!brief.colorAuto && brief.color1) {
       th.primary = brief.color1; th.accent = brief.color2 || th.accent;
@@ -253,16 +262,28 @@ LF.engine = (function () {
       form: true, hero: true, benefits: true
     };
     sections = sections.filter(s => want[s]);
+    if (pack.kind === 'catalog') {
+      sections = sections.filter(s => s !== 'visuals');
+      const at = sections.includes('proof') ? sections.indexOf('proof') + 1 : 1;
+      sections.splice(at, 0, 'tiles', 'products');
+      sections.splice(sections.indexOf('steps') >= 0 ? sections.indexOf('steps') + 1 : sections.length - 1, 0, 'facts');
+    }
     if (sub) {
       const before = sections.slice();
-      const drop = ['visuals', 'steps', 'testimonials', 'faq'];
+      const drop = ['visuals', 'tiles', 'facts', 'steps', 'testimonials', 'faq'];
       const quota = Math.max(1, Math.round(before.length * (O.subtractive.pct / 100)));
       const cut = [];
       drop.forEach(s => { if (cut.length < quota && sections.includes(s)) { cut.push(s); sections = sections.filter(x => x !== s); } });
-      const names = { visuals: 'galería decorativa', steps: '«cómo funciona»', testimonials: 'testimonios', faq: 'preguntas frecuentes' };
+      const names = { visuals: 'galería decorativa', tiles: 'categorías', facts: 'garantías', steps: '«cómo funciona»', testimonials: 'testimonios', faq: 'preguntas frecuentes' };
       if (cut.length) note('Diseño sustractivo', `Eliminado ${cut.map(x => names[x]).join(', ')} (${Math.round(cut.length / before.length * 100)} % de las secciones). Peso visual en: ${O.subtractive.focus.toLowerCase()}.`, 'ok');
       if (benefits.length > 3) { note('Diseño sustractivo', `Beneficios reducidos de ${benefits.length} a 3.`, 'ok'); benefits.length = 3; }
     }
+
+    if (dna && dna.shuffle) {
+      sections = LF.seed.shuffleMiddle(sections, dna, k => ['tiles', 'products', 'benefits', 'story', 'visuals', 'facts'].includes(k));
+      note('Semilla', 'Orden de las secciones intermedias barajado por la semilla (locura ' + dna.wild + '/3).', 'ok');
+    }
+    if (dna && dna.marquee) sections.splice(sections.indexOf('hero') + 1, 0, 'marquee');
 
     /* Formulario */
     let maxFields = sub ? +O.subtractive.fields : 3;
@@ -280,18 +301,137 @@ LF.engine = (function () {
     const motion = T.has('video');
     const imgPrompts = rich ? P.imagePrompts(brief, Object.assign({}, O.image, { _negative: T.has('negative') }), seedIds) : [];
     const vidPrompt = motion ? P.videoPrompt(brief, O.video) : '';
-    if (rich) note('Generación de imágenes', `${imgPrompts.length} prompt(s) de imagen para ${O.image.tool} incluidos en el código; ilustraciones SVG generativas como marcador de posición.`, 'ok');
+    if (rich) note('Generación de imágenes', `${imgPrompts.length} ilustración(es) dibujadas en código (${pack.kind === 'catalog' ? 'siluetas de producto en SVG' : pack.kind === 'ui' ? 'maquetas de interfaz en HTML y CSS' : 'motivos del negocio en SVG'}), sin fotos ni servicios externos. La lista de lo que debe dibujar la IA está en el código.`, 'ok');
     if (motion) note('Generación de vídeo', `Fondo animado en canvas (simula el vídeo de ${O.video.tool}, respeta prefers-reduced-motion). Prompt de vídeo incluido en el código.`, 'ok');
+
+    /* ---------- Componentes visuales y mockups en HTML/CSS ---------- */
+    function mockupHero(m, ben) {
+      const b0 = ben[0] || { title: 'Rendimiento optimizado', desc: 'Resultados medibles desde el primer día' };
+      const b1 = ben[1] || { title: 'Flujo automatizado', desc: 'Ahorro de horas cada semana' };
+      return `<div class="ui-window">
+  <div class="ui-bar">
+    <div class="ui-dots"><span class="ui-dot dot-r"></span><span class="ui-dot dot-y"></span><span class="ui-dot dot-g"></span></div>
+    <span class="ui-title">${esc(m)} · App</span>
+    <span class="ui-live-badge"><span class="ui-live-dot"></span>En vivo</span>
+  </div>
+  <div class="ui-body">
+    <div class="ui-metric-row">
+      <div class="ui-kpi">
+        <span class="ui-kpi-sub">${esc(b0.title)}</span>
+        <span class="ui-kpi-val">+98.4%</span>
+        <span class="ui-kpi-tag">↑ Activo</span>
+      </div>
+      <div class="ui-kpi">
+        <span class="ui-kpi-sub">Tiempo de respuesta</span>
+        <span class="ui-kpi-val">&lt; 24 h</span>
+        <span class="ui-kpi-tag">Garantizado</span>
+      </div>
+    </div>
+    <div class="ui-chart-box">
+      <div class="ui-chart-head">
+        <span>Actividad del sistema</span>
+        <b>100% operativo</b>
+      </div>
+      <div class="ui-bars">
+        <div class="ui-bar-col" style="height:35%"></div>
+        <div class="ui-bar-col" style="height:60%"></div>
+        <div class="ui-bar-col" style="height:48%"></div>
+        <div class="ui-bar-col" style="height:78%"></div>
+        <div class="ui-bar-col" style="height:65%"></div>
+        <div class="ui-bar-col active" style="height:95%"></div>
+      </div>
+    </div>
+    <div class="ui-features-mini">
+      <div class="ui-feat-chip">
+        <svg viewBox="0 0 20 20" fill="currentColor" width="13" height="13"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+        <span>${esc(b0.title)}</span>
+      </div>
+      <div class="ui-feat-chip">
+        <svg viewBox="0 0 20 20" fill="currentColor" width="13" height="13"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+        <span>${esc(b1.title)}</span>
+      </div>
+    </div>
+  </div>
+</div>`;
+    }
+
+    function mockupGalleryCard(idx, useLabel, ben) {
+      const b = ben[idx] || { title: `Característica ${idx + 1}`, desc: 'Integración fluida y transparente' };
+      if (idx === 0) {
+        return `<div class="v-card-mockup">
+  <div class="v-card-top"><span class="ui-kpi-sub">Métricas en tiempo real</span><span class="v-pill">KPI</span></div>
+  <div class="ui-kpi-val">+240%</div>
+  <p class="v-card-desc">${esc(b.title)}</p>
+  <div class="ui-bars" style="height:50px">
+    <div class="ui-bar-col" style="height:30%"></div>
+    <div class="ui-bar-col" style="height:55%"></div>
+    <div class="ui-bar-col" style="height:70%"></div>
+    <div class="ui-bar-col active" style="height:100%"></div>
+  </div>
+  <figcaption>${esc(useLabel || 'Métricas de impacto')}</figcaption>
+</div>`;
+      }
+      if (idx === 1) {
+        return `<div class="v-card-mockup">
+  <div class="v-card-top"><span class="ui-kpi-sub">Flujo interactivo</span><span class="v-pill">Demo</span></div>
+  <div class="v-step-preview">
+    <div class="v-step-row active"><span class="v-check">✓</span><span>1. Diagnóstico instantáneo</span></div>
+    <div class="v-step-row active"><span class="v-check">✓</span><span>2. Configuración guiada</span></div>
+    <div class="v-step-row"><span class="v-check">→</span><span>3. ${esc(b.title)}</span></div>
+  </div>
+  <figcaption>${esc(useLabel || 'Demostración de flujo')}</figcaption>
+</div>`;
+      }
+      return `<div class="v-card-mockup">
+  <div class="v-card-top"><span class="ui-kpi-sub">Seguridad y Confianza</span><span class="v-pill">Garantía</span></div>
+  <div class="v-trust-box">
+    <div class="v-trust-stars">★★★★★ <b>4.9 / 5</b></div>
+    <p class="v-card-desc">${esc(b.title)}</p>
+    <div class="ui-live-badge"><span class="ui-live-dot"></span>Cifrado bancario activo</div>
+  </div>
+  <figcaption>${esc(useLabel || 'Validación y respaldo')}</figcaption>
+</div>`;
+    }
 
     /* ---------- HTML de secciones ---------- */
     const btn = (label, cls) => `<a class="btn ${cls || ''}" href="#form">${esc(S(label))}<span aria-hidden="true">→</span></a>`;
     const H = {};
-    const heroArt = `<div class="hero-art">${art(themeId, c, rich, uid)}</div>`;
+    /* Catálogo: productos dibujados (siluetas) con sus colores, tallas y botón */
+    const swatchCols = [c.primary, c.accent, c.accent2, mix(c.text, c.bg, .55), mix(c.primary, c.bg, .45), mix(c.accent, c.bg, .4)];
+    const prods = LF.verticals.products(pack, brief, 6);
+    const tint = col => mix(c.surface, col, c.bg === c.surface ? .18 : .14);
+    const pcard = (p, i) => {
+      const col = swatchCols[i % swatchCols.length];
+      const tags = ['Nuevo', 'Más vendido', 'Edición corta', 'Nuevo', 'Básico', 'Más vendido'];
+      return `<article class="p-card reveal" style="--i:${i}">
+  <div class="p-img" style="background:${tint(col)}">${LF.shapes.render(p.shape, col, { label: p.name })}<span class="p-tag">${tags[i % tags.length]}</span></div>
+  <h3>${esc(p.name)}</h3>
+  <p class="p-price">[precio por confirmar]</p>
+  ${pack.swatches ? `<div class="p-sw" aria-label="Colores disponibles">${[0, 1, 2].map(k => `<i style="background:${swatchCols[(i + k) % swatchCols.length]}"></i>`).join('')}</div>` : ''}
+  ${pack.sizes && pack.sizes.length ? `<div class="p-sizes" aria-label="Tallas">${pack.sizes.map(z => `<span>${z}</span>`).join('')}</div>` : ''}
+  <a class="btn sm" href="#form">${esc(pack.id === 'fashion' ? 'Añadir a la bolsa' : 'Añadir')}</a>
+</article>`;
+    };
+    const mo = pack.kind === 'scene' ? LF.verticals.motifs(pack, brief) : null;
+    const motifItems = mo ? mo.shapes.map(sh => ({ shape: sh, name: LF.shapes.label(sh) })) : null;
+    function catalogHero(list) {
+      const a = list[0], b2 = list[1], c2 = list[2];
+      return `<div class="lb" role="img" aria-label="Selección de la colección">
+  <figure class="lb-main" style="background:${tint(swatchCols[0])}">${LF.shapes.render(a.shape, swatchCols[0], { label: a.name })}<figcaption>${esc(a.name)}</figcaption></figure>
+  <figure class="lb-sm" style="background:${tint(swatchCols[1])}">${LF.shapes.render(b2.shape, swatchCols[1], { label: b2.name })}<figcaption>${esc(b2.name)}</figcaption></figure>
+  <figure class="lb-sm" style="background:${tint(swatchCols[2])}">${LF.shapes.render(c2.shape, swatchCols[2], { label: c2.name })}<figcaption>${esc(c2.name)}</figcaption></figure>
+</div>`;
+    }
+    const heroVisual = pack.kind === 'catalog' ? catalogHero(prods) : pack.kind === 'ui' ? mockupHero(marca, benefits) : motifItems ? catalogHero(motifItems) : art(themeId, c, rich, uid);
+    const heroArt = `<div class="hero-art">${heroVisual}</div>`;
     const navHtml = navMode.startsWith('Sin menú')
       ? `<header class="top"><div class="wrap nav"><a class="logo" href="#">${esc(marca)}</a></div></header>`
       : `<header class="top"><div class="wrap nav"><a class="logo" href="#">${esc(marca)}</a>${navMode.startsWith('Anclas') && anchors.length ? `<nav aria-label="Secciones">${anchors.map(a => `<a href="#${a[0]}">${a[1]}</a>`).join('')}</nav>` : ''}<a class="btn sm" href="#form">${esc(S(cta))}</a></div></header>`;
 
-    H.hero = `<section class="hero hero--${th.hero}" id="top">${motion ? '<canvas class="motion" aria-hidden="true"></canvas>' : ''}${th.grid ? '<div class="gridbg" aria-hidden="true"></div>' : ''}${th.scan ? '<div class="scan" aria-hidden="true"></div>' : ''}
+    const decorHtml = dna && dna.decorN ? `<div class="decor" aria-hidden="true">${LF.seed.decorShapes(dna).map(LF.seed.decorSvg).join('')}</div>` : '';
+    const mqWords = [marca].concat(benefits.map(b => noDot(b.title))).map(x => esc(S(x)).toUpperCase());
+    H.marquee = `<div class="marq" aria-hidden="true"><div class="marq-t">${[0, 1].map(() => mqWords.concat(mqWords).map(w => `<span>${w}</span><i>✦</i>`).join('')).join('')}</div></div>`;
+    H.hero = `<section class="hero hero--${th.hero}" id="top">${decorHtml}${motion ? '<canvas class="motion" aria-hidden="true"></canvas>' : ''}${th.grid ? '<div class="gridbg" aria-hidden="true"></div>' : ''}${th.scan ? '<div class="scan" aria-hidden="true"></div>' : ''}
 <div class="wrap hero-grid">
   <div class="hero-copy">
     <p class="eyebrow">${esc(S(eyebrow))}</p>
@@ -310,7 +450,7 @@ LF.engine = (function () {
   <p class="eyebrow">${human ? 'En la práctica' : 'Beneficios'}</p>
   <h2>${esc(S(human ? `Lo que cambia cuando usas ${marca}` : `Por qué elegir ${marca}`))}</h2>
   <div class="b-list">${benefits.map((b, i) => `<article class="b-item reveal" style="--i:${i}">
-    <div class="b-mark">${th.benefits === 'numbered' || th.benefits === 'columns' || th.benefits === 'editorial' ? String(i + 1).padStart(2, '0') : th.benefits === 'figures' ? 'FIG. ' + (i + 1) : th.benefits === 'terminal' ? '> 0' + (i + 1) : icon(i, c.primaryInk)}</div>
+    <div class="b-mark">${['numbered', 'columns', 'editorial', 'ledger', 'zigzag', 'timeline', 'bigtext'].includes(th.benefits) ? String(i + 1).padStart(2, '0') : th.benefits === 'figures' ? 'FIG. ' + (i + 1) : th.benefits === 'terminal' ? '> 0' + (i + 1) : icon(i, c.primaryInk)}</div>
     <h3>${esc(S(b.title))}</h3><p>${esc(S(b.desc))}</p></article>`).join('')}</div>
 </div></section>`;
 
@@ -324,7 +464,12 @@ LF.engine = (function () {
   </div>
 </div></section>`;
 
-    H.visuals = `<section class="visuals" aria-label="Galería"><div class="wrap v-grid">${[0, 1, 2].map(i => `<figure class="v-item reveal" style="--i:${i}">${art(i === 0 ? themeId : (seedIds[1] || themeId), Object.assign({}, c, { primary: [c.primary, c.accent, c.accent2][i], accent: [c.accent, c.accent2, c.primary][i] }), i !== 1, uid + i)}<figcaption>${esc(S((imgPrompts[i] || {}).use || ['Hero', 'Textura', 'Iconos'][i]))}</figcaption></figure>`).join('')}</div></section>`;
+    const sceneCard = i => `<div class="v-card-mockup"><div class="v-art">${motifItems ? LF.shapes.render(motifItems[i % motifItems.length].shape, swatchCols[i % swatchCols.length], { label: motifItems[i % motifItems.length].name }) : art(themeId, c, false, uid + i)}</div><p class="v-card-desc"><b>${esc(S(benefits[i].title))}</b><br>${esc(S(benefits[i].desc))}</p><figcaption>${esc((imgPrompts[i] || {}).use || 'Detalle')}</figcaption></div>`;
+    H.visuals = `<section class="visuals" aria-label="Galería"><div class="wrap v-grid">${[0, 1, 2].map(i => `<figure class="v-item reveal" style="--i:${i}">${pack.kind === 'ui' ? mockupGalleryCard(i, (imgPrompts[i] || {}).use, benefits) : sceneCard(i)}</figure>`).join('')}</div></section>`;
+
+    H.tiles = `<section id="tiles" class="tiles" aria-label="Categorías"><div class="wrap"><p class="eyebrow">Explora</p><h2>${esc(pack.id === 'fashion' ? 'Elige por dónde empezar' : 'Encuentra lo tuyo')}</h2><div class="tile-grid">${(pack.tiles || []).map(([name, shape], i) => `<a class="tile reveal" href="#products" style="--i:${i};background:${tint(swatchCols[i])}"><span class="tile-art">${LF.shapes.render(shape, swatchCols[i], { label: name })}</span><span class="tile-name">${esc(name)} <b aria-hidden="true">→</b></span></a>`).join('')}</div></div></section>`;
+    H.products = `<section id="products" class="products"><div class="wrap"><p class="eyebrow">${esc(human ? 'Lo que más se lleva' : 'Selección')}</p><h2>${esc(pack.id === 'fashion' ? 'Piezas que sí vas a usar' : 'Lo más elegido')}</h2><div class="p-grid">${prods.map(pcard).join('')}</div></div></section>`;
+    H.facts = `<section id="facts" class="facts" aria-label="Garantías"><div class="wrap fact-row">${(pack.facts || []).map(([t, d], i) => `<div class="fact reveal" style="--i:${i}"><b>${esc(t)}</b><span>${esc(d)}</span></div>`).join('')}</div></section>`;
 
     const stepsByGoal = {
       leads: ['Cuéntanos tu caso en el formulario', 'Te contactamos con una propuesta', 'Empezamos a trabajar juntos'],
@@ -334,7 +479,8 @@ LF.engine = (function () {
       app: ['Descarga la app', 'Crea tu perfil en un minuto', 'Empieza hoy mismo'],
       event: ['Aparta tu cupo', 'Recibe el acceso por correo', 'Conéctate el día del evento']
     }[brief.objetivo] || ['Da el primer paso', 'Configura', 'Disfruta el resultado'];
-    H.steps = `<section id="steps" class="steps"><div class="wrap"><p class="eyebrow">Cómo funciona</p><h2>Tres pasos, sin letra pequeña</h2><ol class="s-list">${stepsByGoal.map((s, i) => `<li class="reveal" style="--i:${i}"><b>${i + 1}</b><span>${esc(S(s))}</span></li>`).join('')}</ol></div></section>`;
+    const stepsFinal = pack.kind !== 'ui' && pack.steps ? pack.steps : stepsByGoal;
+    H.steps = `<section id="steps" class="steps"><div class="wrap"><p class="eyebrow">Cómo funciona</p><h2>Tres pasos, sin letra pequeña</h2><ol class="s-list">${stepsFinal.map((s, i) => `<li class="reveal" style="--i:${i}"><b>${i + 1}</b><span>${esc(S(s))}</span></li>`).join('')}</ol></div></section>`;
 
     const tNames = ['Laura M.', 'Andrés P.', 'Camila R.'];
     H.testimonials = `<section class="testimonials"><div class="wrap"><p class="eyebrow">Lo que dicen</p><div class="t-grid">${benefits.slice(0, 3).map((b, i) => `<figure class="reveal" style="--i:${i}"><blockquote>“${esc(S(`${noDot(b.title)}: eso fue lo que más notamos. ${['Lo recomendaría sin dudar.', 'Ojalá lo hubiéramos encontrado antes.', 'Cumple lo que promete.'][i]}`))}”</blockquote><figcaption>${tNames[i]} · ${esc(publico ? cap(publico.split(/\s+/).slice(0, 3).join(' ')) : 'Cliente')} <em>[testimonio de ejemplo]</em></figcaption></figure>`).join('')}</div></div></section>`;
@@ -383,6 +529,8 @@ LF.engine = (function () {
     if (human) note('Redacción humana', `Voz «${O.human.voice}»${O.human.storytelling ? ' con arco de storytelling' : ''}. Revisa manualmente titular, historia y testimonios antes de publicar.`, 'info');
     if (sections.includes('testimonials')) note('Pendiente', 'Los testimonios son de ejemplo: reemplázalos por testimonios reales antes de publicar.', 'warn');
 
+    const bodyCls = dna ? ['wild-' + dna.wild, 'pat-' + dna.pattern, 'card-' + dna.card, 'hl-' + dna.headline, 'nav-' + dna.nav, dna.tint ? 'tint' : '', 'edge-' + dna.edge, 'btn-' + dna.buttonK].filter(Boolean).join(' ') : '';
+
     /* ---------- CSS ---------- */
     const border = th.border || 'none';
     const shadow = th.shadow || 'none';
@@ -421,6 +569,37 @@ section{padding:clamp(64px,10vw,128px) 0;position:relative}
 ${th.gradient ? '.hero::before{content:"";position:absolute;inset:-20% -10% auto auto;width:70vw;height:70vw;background:radial-gradient(circle,color-mix(in srgb,var(--accent) 35%,transparent),transparent 60%);z-index:0}' : ''}
 .hero-grid{display:grid;gap:clamp(32px,5vw,72px);align-items:center;grid-template-columns:1.1fr .9fr}
 .hero-art svg{width:100%}
+.hero-art{width:100%;max-width:540px;margin-inline:auto}
+.ui-window{background:var(--surface);border:${th.border || '1px solid var(--line)'};border-radius:var(--radius);box-shadow:${th.shadow || '0 18px 40px rgba(0,0,0,.1)'};overflow:hidden;display:flex;flex-direction:column;text-align:left;width:100%}
+.ui-bar{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:color-mix(in srgb,var(--surface) 80%,var(--line));border-bottom:1px solid var(--line);font-size:.8rem;font-weight:600}
+.ui-dots{display:flex;gap:6px}
+.ui-dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+.dot-r{background:#ff5f56} .dot-y{background:#ffbd2e} .dot-g{background:#27c93f}
+.ui-live-badge{display:inline-flex;align-items:center;gap:5px;font-size:.75rem;color:var(--p-ink);font-weight:600}
+.ui-live-dot{width:7px;height:7px;border-radius:50%;background:currentColor;box-shadow:0 0 6px currentColor}
+.ui-body{padding:20px;display:flex;flex-direction:column;gap:16px}
+.ui-metric-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.ui-kpi{background:var(--bg);padding:12px 14px;border-radius:calc(var(--radius) / 2);border:1px solid var(--line);display:flex;flex-direction:column;gap:4px}
+.ui-kpi-sub{font-size:.73rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.ui-kpi-val{font-size:1.35rem;font-weight:700;color:var(--text);font-family:var(--fd)}
+.ui-kpi-tag{font-size:.72rem;color:var(--p-ink);font-weight:600}
+.ui-chart-box{background:var(--bg);border-radius:calc(var(--radius) / 2);border:1px solid var(--line);padding:14px}
+.ui-chart-head{display:flex;justify-content:space-between;font-size:.78rem;margin-bottom:10px;color:var(--muted)}
+.ui-bars{display:flex;align-items:flex-end;gap:8px;height:70px}
+.ui-bar-col{flex:1;background:color-mix(in srgb,var(--primary) 28%,transparent);border-radius:3px 3px 0 0}
+.ui-bar-col.active{background:var(--primary)}
+.ui-features-mini{display:flex;flex-wrap:wrap;gap:8px}
+.ui-feat-chip{display:inline-flex;align-items:center;gap:6px;font-size:.78rem;background:var(--bg);padding:6px 10px;border-radius:999px;border:1px solid var(--line);color:var(--text);font-weight:500}
+.v-card-mockup{background:var(--surface);border-radius:var(--radius);padding:22px;border:${th.border || '1px solid var(--line)'};box-shadow:${th.shadow || 'none'};display:flex;flex-direction:column;justify-content:space-between;gap:14px;text-align:left;min-height:220px}
+.v-card-top{display:flex;justify-content:space-between;align-items:center}
+.v-pill{font-size:.7rem;font-weight:700;padding:.2em .6em;background:var(--primary);color:var(--on-primary);border-radius:999px}
+.v-card-desc{font-size:.88rem;color:var(--muted)}
+.v-step-preview{display:grid;gap:8px}
+.v-step-row{display:flex;align-items:center;gap:8px;font-size:.82rem;padding:6px 10px;background:var(--bg);border-radius:calc(var(--radius) / 2);border:1px solid var(--line)}
+.v-step-row.active{color:var(--p-ink);font-weight:600}
+.v-check{font-weight:700}
+.v-trust-box{display:grid;gap:8px}
+.v-trust-stars{font-size:1rem;color:var(--p-ink)}
 .hero--asym .hero-grid{grid-template-columns:repeat(12,1fr);align-items:end}
 .hero--asym .hero-copy{grid-column:5/13;grid-row:1}
 .hero--asym .hero-art{grid-column:1/5;grid-row:1;align-self:start;max-width:320px;margin-top:-40px}
@@ -512,6 +691,31 @@ details p{margin-top:10px;color:var(--muted)}
 .f-card input{font:inherit;padding:.85em 1em;border:1px solid ${c.muted};border-radius:calc(var(--radius) / 2);background:var(--surface);color:var(--text)}
 .f-card .btn{justify-content:center;margin-top:6px}
 .ok{color:var(--p-ink);font-weight:600}
+/* CATÁLOGO */
+.lb{display:grid;grid-template-columns:1.25fr 1fr;grid-template-rows:1fr 1fr;gap:12px;aspect-ratio:1/1.05}
+.lb figure{margin:0;border-radius:var(--radius);border:${th.border || '1px solid var(--line)'};display:flex;flex-direction:column;justify-content:flex-end;padding:14px;overflow:hidden;position:relative}
+.lb figure svg{width:70%;margin:auto}
+.lb-main{grid-row:1/3}
+.lb figcaption{font-size:.74rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);text-align:center}
+.tile-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.tile{display:flex;flex-direction:column;justify-content:space-between;gap:14px;padding:20px;border-radius:var(--radius);border:${th.border || '1px solid var(--line)'};text-decoration:none;color:var(--text);min-height:300px;transition:transform .25s}
+.tile:hover{transform:translateY(-4px)}
+.tile-art{display:block;width:62%;margin:auto}
+.tile-name{font-family:var(--fd);font-size:1.3rem;display:flex;justify-content:space-between}
+.p-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:22px}
+.p-card{display:flex;flex-direction:column;gap:8px}
+.p-card h3{margin:.3em 0 0;font-size:1.05rem}
+.p-img{border-radius:var(--radius);border:${th.border || '1px solid var(--line)'};padding:22px 26px;position:relative;aspect-ratio:1/1.15;display:grid;place-items:center}
+.p-img svg{width:78%}
+.p-tag{position:absolute;top:10px;left:10px;font-size:.68rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;background:var(--primary);color:var(--on-primary);padding:.25em .6em;border-radius:var(--btn-radius)}
+.p-price{font-size:.9rem;color:var(--muted)}
+.p-sw{display:flex;gap:6px} .p-sw i{width:14px;height:14px;border-radius:50%;border:1px solid var(--line);display:block}
+.p-sizes{display:flex;gap:6px;flex-wrap:wrap} .p-sizes span{font-size:.72rem;font-weight:600;border:1px solid var(--line);padding:.2em .55em;border-radius:calc(var(--radius) / 4)}
+.p-card .btn{justify-content:center;margin-top:4px}
+.facts{padding:36px 0;border-block:1px solid var(--line);background:var(--surface)}
+.fact-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:20px}
+.fact{display:flex;flex-direction:column;gap:4px} .fact b{font-family:var(--fd);font-size:1.1rem} .fact span{color:var(--muted);font-size:.92rem}
+.v-art svg{width:100%;max-height:150px}
 /* PIE */
 .foot{padding:32px 0;border-top:1px solid var(--line);font-size:.88rem;color:var(--muted)}
 .foot-row{display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px}
@@ -524,10 +728,134 @@ details p{margin-top:10px;color:var(--muted)}
   .hero-grid,.hero--asym .hero-grid,.hero--ma .hero-grid,.hero--swiss .hero-grid,.hero--editorial .hero-grid,.hero--spiral .hero-grid,.hero--blueprint .hero-grid{grid-template-columns:1fr}
   .hero--asym .hero-copy,.hero--asym .hero-art,.hero--ma .hero-copy,.hero--ma .hero-art,.hero--swiss .hero-copy,.hero--swiss .hero-art{grid-column:1;grid-row:auto}
   .hero-art{max-width:300px;margin-top:0!important} .hero--stack .hero-art{margin-top:0;justify-self:start}
-  .nav nav{display:none} .story-steps,.s-list,.v-grid,.f-grid{grid-template-columns:1fr}
+  .nav nav{display:none} .story-steps,.s-list,.v-grid,.f-grid,.tile-grid{grid-template-columns:1fr} .tile{min-height:200px}
   .b--stagger .b-item,.b--stagger .b-item.reveal.in{transform:none!important} .b--stagger{padding-bottom:64px}
   .b--columns .b-item{border-left:none;border-top:1px solid var(--line);padding:20px 0 0}
 }`;
+
+
+    const fxCss = !dna ? '' : (() => {
+      const w = dna.wild, rot = (0.7 + w * 0.6).toFixed(1), edgeH = [0, 22, 34, 46][w] + 'px';
+      const ink = c.text, [ir, ig, ib] = hexToRgb(ink);
+      const svg = (body, sw, sh) => ({ img: `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' width='${sw}' height='${sh}'>${body}</svg>`)}")`, size: `${sw}px ${sh}px` });
+      const stroke = (op, extra) => `fill='none' stroke='${ink}' stroke-opacity='${op}' stroke-width='1.5' ${extra || ''}`;
+      const cr = LF.seed.rng('confetti:' + dna.seed), conf = [];
+      for (let i = 0; i < 10; i++) { const col = [c.primary, c.accent, c.accent2][i % 3], x = Math.round(cr() * 110) + 4, y = Math.round(cr() * 110) + 4, k = i % 3; conf.push(k === 0 ? `<circle cx='${x}' cy='${y}' r='3.5' fill='${col}' fill-opacity='.45'/>` : k === 1 ? `<rect x='${x}' y='${y}' width='8' height='3' fill='${col}' fill-opacity='.45' transform='rotate(${Math.round(cr() * 90)} ${x} ${y})'/>` : `<path d='M${x} ${y}l5 9h-10z' fill='${col}' fill-opacity='.4'/>`); }
+      const pats = {
+        dots: { img: `radial-gradient(color-mix(in srgb,var(--text) 22%,transparent) 1.4px,transparent 1.6px)`, size: '18px 18px' },
+        grid: { img: 'linear-gradient(color-mix(in srgb,var(--text) 10%,transparent) 1px,transparent 1px),linear-gradient(90deg,color-mix(in srgb,var(--text) 10%,transparent) 1px,transparent 1px)', size: '30px 30px' },
+        stripes: { img: 'repeating-linear-gradient(45deg,transparent 0 11px,color-mix(in srgb,var(--text) 9%,transparent) 11px 12px)', size: 'auto' },
+        checker: { img: 'conic-gradient(color-mix(in srgb,var(--text) 7%,transparent) 25%,transparent 0 50%,color-mix(in srgb,var(--text) 7%,transparent) 0 75%,transparent 0)', size: '44px 44px' },
+        waves: { img: 'radial-gradient(circle at 50% 100%,transparent 56%,color-mix(in srgb,var(--text) 14%,transparent) 57% 60%,transparent 61%)', size: '40px 20px' },
+        vlines: { img: 'repeating-linear-gradient(90deg,transparent 0 15px,color-mix(in srgb,var(--text) 10%,transparent) 15px 16px)', size: 'auto' },
+        graph: { img: 'linear-gradient(color-mix(in srgb,var(--text) 14%,transparent) 1px,transparent 1px),linear-gradient(90deg,color-mix(in srgb,var(--text) 14%,transparent) 1px,transparent 1px),linear-gradient(color-mix(in srgb,var(--text) 6%,transparent) 1px,transparent 1px),linear-gradient(90deg,color-mix(in srgb,var(--text) 6%,transparent) 1px,transparent 1px)', size: '60px 60px,60px 60px,12px 12px,12px 12px' },
+        plaid: { img: 'repeating-linear-gradient(0deg,color-mix(in srgb,var(--primary) 9%,transparent) 0 22px,transparent 22px 44px),repeating-linear-gradient(90deg,color-mix(in srgb,var(--accent) 8%,transparent) 0 22px,transparent 22px 44px)', size: 'auto' },
+        crosses: svg(`<path d='M14 9v10M9 14h10' ${stroke(.3)}/>`, 28, 28), triangles: svg(`<path d='M20 5 36 29H4Z' ${stroke(.2)}/>`, 40, 34),
+        scales: svg(`<path d='M0 20a20 20 0 0 1 40 0M-20 10a20 20 0 0 1 40 0M20 10a20 20 0 0 1 40 0' ${stroke(.2)}/>`, 40, 20), zigzagp: svg(`<path d='M0 12 8 4l8 8 8-8 8 8' ${stroke(.22)}/>`, 32, 16),
+        hex: svg(`<path d='M28 66 0 50V16L28 0l28 16v34zM28 100 0 84V66M28 100l28-16V66' ${stroke(.18)}/>`, 56, 100), diamonds: svg(`<path d='M16 2 30 16 16 30 2 16Z' ${stroke(.2)}/>`, 32, 32),
+        confetti: svg(conf.join(''), 120, 120),
+        noise: svg(`<filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2'/><feColorMatrix values='0 0 0 0 ${(ir / 255).toFixed(2)} 0 0 0 0 ${(ig / 255).toFixed(2)} 0 0 0 0 ${(ib / 255).toFixed(2)} 0 0 0 .12 0'/></filter><rect width='100%' height='100%' filter='url(#n)'/>`, 140, 140)
+      };
+      const k = [];
+      k.push(`body{--edge:${edgeH};--fa:${dna.fonts.fa}}`);
+      k.push('.eyebrow,.p-tag,.p-price,.marq,.fact b,.tile-name{font-family:var(--fa)}');
+      if (pats[dna.pattern]) k.push(`.hero,.benefits,.story,.products,.cta-final{background-image:${pats[dna.pattern].img};background-size:${pats[dna.pattern].size}}`);
+      // bordes irregulares: solo tienen sentido con secciones teñidas (si no, no se ve la diferencia)
+      const poly = LF.seed.edgePolygon(dna);
+      const tintBg = dna.tint ? 'color-mix(in srgb,var(--primary) 9%,var(--bg))' : 'color-mix(in srgb,var(--accent) 12%,var(--bg))';
+      if (dna.tint) k.push('main>section:nth-child(even):not(.hero){background-color:color-mix(in srgb,var(--primary) 9%,var(--bg))}');
+      if (poly) k.push(`${dna.tint ? 'main>section:nth-child(even):not(.hero)' : 'main>section.story,main>section.offer,main>section.cta-final'}{clip-path:${poly};margin-top:calc(var(--edge) * -1);padding-top:calc(clamp(64px,10vw,128px) + var(--edge));background-color:${tintBg}}`);
+
+      /* tarjetas */
+      const cards = '.b-item,.p-img,.t-grid figure,.v-item,.tile,.o-card,.f-card,.ui-window,details';
+      const cardsLite = '.b-item,.p-img,.t-grid figure,.v-item,.tile';
+      const odd = '.b-item:nth-child(odd),.p-card:nth-child(odd) .p-img,.t-grid figure:nth-child(odd),.tile:nth-child(odd)', even = '.b-item:nth-child(even),.p-card:nth-child(even) .p-img,.t-grid figure:nth-child(even),.tile:nth-child(even)';
+      const CARD = {
+        sticker: `${cards}{border:2.5px solid var(--text)!important;box-shadow:6px 6px 0 var(--text)!important}${odd}{transform:rotate(-${rot}deg)}${even}{transform:rotate(${rot}deg)}`,
+        polaroid: `${cardsLite}{background:#fff!important;color:#151515;border:none!important;padding-bottom:34px;box-shadow:0 12px 26px rgba(0,0,0,.22)!important}.b-item p,.t-grid figcaption,.v-item figcaption{color:#444!important}${odd}{transform:rotate(-${rot}deg)}${even}{transform:rotate(${rot}deg)}`,
+        ticket: `${cards}{border:2px dashed var(--text)!important;border-radius:10px!important}`,
+        tape: `${cardsLite}{position:relative;overflow:visible}.b-item::before,.p-img::before,.t-grid figure::before,.v-item::before,.tile::before{content:"";position:absolute;top:-11px;left:50%;width:76px;height:22px;background:color-mix(in srgb,var(--accent) 55%,transparent);transform:translateX(-50%) rotate(-3deg);z-index:2}`,
+        offset: `${cards}{border:2px solid var(--text)!important;box-shadow:none!important;outline:2px solid var(--primary);outline-offset:5px}`,
+        notch: `${cardsLite}{border:none!important;background:color-mix(in srgb,var(--primary) 10%,var(--surface))!important;clip-path:polygon(0 14px,14px 0,calc(100% - 14px) 0,100% 14px,100% calc(100% - 14px),calc(100% - 14px) 100%,14px 100%,0 calc(100% - 14px))}`,
+        tab: `${cardsLite}{border-top:14px solid var(--primary)!important}`,
+        paper: `${cards}{box-shadow:4px 4px 0 var(--surface),8px 8px 0 var(--line)!important}`,
+        ribbon: `${cardsLite}{position:relative;overflow:hidden}.b-item::after,.p-img::after,.t-grid figure::after,.v-item::after,.tile::after{content:"";position:absolute;top:0;right:0;border-style:solid;border-width:0 46px 46px 0;border-color:transparent var(--accent) transparent transparent}`,
+        dotted: `${cards}{border:3px dotted var(--text)!important}`,
+        pillc: `${cardsLite},.o-card,.f-card{border-radius:44px!important}`,
+        corners: `${cardsLite}{border:none!important;background-image:linear-gradient(var(--text),var(--text)),linear-gradient(var(--text),var(--text)),linear-gradient(var(--text),var(--text)),linear-gradient(var(--text),var(--text)),linear-gradient(var(--text),var(--text)),linear-gradient(var(--text),var(--text)),linear-gradient(var(--text),var(--text)),linear-gradient(var(--text),var(--text));background-repeat:no-repeat;background-position:0 0,0 0,100% 0,100% 0,0 100%,0 100%,100% 100%,100% 100%;background-size:18px 2px,2px 18px,18px 2px,2px 18px,18px 2px,2px 18px,18px 2px,2px 18px}`
+      };
+      if (CARD[dna.card]) k.push(CARD[dna.card]);
+
+      /* titulares */
+      const HL = {
+        outline: 'h1{-webkit-text-stroke:2px var(--text);color:transparent;letter-spacing:.01em}',
+        tilt: '.hero h1{transform:rotate(-2deg);transform-origin:left bottom}',
+        marker: '.hero h1{display:inline;background:linear-gradient(transparent 60%,color-mix(in srgb,var(--accent) 60%,transparent) 60% 92%,transparent 92%);box-decoration-break:clone;-webkit-box-decoration-break:clone}.hero .eyebrow{margin-bottom:.6em;display:block}',
+        giant: '.hero h1{font-size:clamp(3rem,11vw,9rem)!important;line-height:.88;letter-spacing:-.04em;overflow-wrap:anywhere}',
+        stacked: '.hero h1{text-transform:uppercase;line-height:.92;font-size:clamp(2.4rem,7vw,6rem)!important;max-width:11ch;overflow-wrap:anywhere}',
+        shadow: '.hero h1{text-shadow:4px 4px 0 var(--accent)}',
+        wavy: '.hero h1{text-decoration:underline wavy var(--accent);text-decoration-thickness:4px;text-underline-offset:12px}',
+        spaced: '.hero h1{text-transform:uppercase;letter-spacing:.16em;font-size:clamp(1.8rem,4.2vw,3.4rem)!important;line-height:1.2}',
+        tight: '.hero h1{text-transform:uppercase;line-height:.82;letter-spacing:-.05em}',
+        smallcaps: '.hero h1{font-variant:small-caps;letter-spacing:.04em;text-transform:none}',
+        block: '.hero h1{display:inline;background:var(--primary);color:var(--on-primary);padding:.05em .28em;box-decoration-break:clone;-webkit-box-decoration-break:clone;line-height:1.3}.hero .eyebrow{display:block;margin-bottom:.8em}'
+      };
+      if (HL[dna.headline]) k.push(HL[dna.headline]);
+
+      /* navegación */
+      const NV = {
+        pill: '.top{top:12px;margin:12px auto 0;width:min(1100px,94%);border:1px solid var(--line);border-radius:999px;background:color-mix(in srgb,var(--bg) 90%,transparent)}.nav{padding:8px 20px}',
+        centered: '.nav{flex-direction:column;gap:6px;padding:12px 0}.nav .btn.sm{display:none}',
+        minimal: '.nav nav{display:none!important}',
+        thick: '.top{border-bottom:4px solid var(--text)}.nav nav a{text-transform:uppercase;letter-spacing:.1em;font-weight:700;color:var(--text)}',
+        boxed: '.top{margin:10px auto 0;width:min(1140px,94%);border:2px solid var(--text);background:var(--bg)}.nav{padding:10px 18px}',
+        tabs: '.nav nav{gap:0}.nav nav a{border:1px solid var(--line);padding:.45em 1em;margin-left:-1px;color:var(--text)}.nav nav a:hover{background:var(--primary);color:var(--on-primary)}',
+        inverted: '.top{background:var(--text);color:var(--bg);border-bottom:none}.top .logo,.top .nav nav a{color:var(--bg)}'
+      };
+      if (NV[dna.nav]) k.push(NV[dna.nav]);
+
+      /* botones */
+      const BT = {
+        pill: '.btn{border-radius:999px!important}',
+        outline: '.btn{background:transparent!important;color:var(--text)!important;border:2px solid var(--text)!important;box-shadow:none!important}',
+        underline: '.btn{background:none!important;color:var(--text)!important;border:none!important;box-shadow:none!important;border-bottom:3px solid var(--primary)!important;border-radius:0!important;padding-inline:.2em}',
+        shadow: '.btn{box-shadow:5px 5px 0 var(--text)!important;border:2px solid var(--text)}.btn:hover{box-shadow:2px 2px 0 var(--text)!important}',
+        double: '.btn{outline:2px solid var(--primary);outline-offset:4px}',
+        block: '.btn{text-transform:uppercase;letter-spacing:.14em;padding:1.2em 2.4em;border-radius:0!important}',
+        tilt: '.btn{transform:rotate(-2deg)}.btn:hover{transform:rotate(1deg) scale(1.05)}'
+      };
+      if (BT[dna.buttonK]) k.push(BT[dna.buttonK]);
+
+      if (w >= 3) k.push('h2{transform:rotate(-1deg)}.btn{transform:rotate(-1.5deg)}.btn:hover{transform:rotate(1deg) scale(1.04)}');
+      k.push('.decor{position:absolute;inset:0;pointer-events:none;z-index:0;overflow:hidden}.decor-s{position:absolute;display:block;height:auto}');
+      k.push(`.marq{overflow:hidden;background:var(--primary);color:var(--on-primary);padding:14px 0;border-block:var(--border,none);${w >= 2 ? 'transform:rotate(-1.6deg);margin:18px -2vw;' : ''}position:relative;z-index:2}.marq-t{display:flex;width:max-content;animation:mq 28s linear infinite;font-size:clamp(1.1rem,2.4vw,1.8rem);letter-spacing:.06em;white-space:nowrap}.marq-t span{padding:0 18px}.marq-t i{font-style:normal;opacity:.7}@keyframes mq{to{transform:translateX(-50%)}}`);
+      k.push('@media (prefers-reduced-motion:reduce){.marq-t{animation:none}}');
+
+      /* heros nuevos */
+      k.push('.hero--giant .hero-grid{grid-template-columns:1fr;gap:16px}.hero--giant h1{font-size:clamp(3rem,12vw,10rem);line-height:.86;letter-spacing:-.05em;max-width:none}.hero--giant .hero-art{justify-self:end;max-width:320px}');
+      k.push('.hero--diagonal{background:color-mix(in srgb,var(--primary) 11%,var(--bg));clip-path:polygon(0 0,100% 0,100% 90%,0 100%);padding-bottom:10vw}');
+      k.push('.hero--collage .hero-grid{grid-template-columns:1fr 1fr}.hero--collage .hero-art{transform:rotate(3deg)}.hero--collage .lb figure:nth-child(2){transform:rotate(-5deg) translate(-8px,10px)}.hero--collage .lb figure:nth-child(3){transform:rotate(4deg)}.hero--collage .ui-window,.hero--collage .hero-art>svg{transform:rotate(-2deg)}');
+      k.push('.hero--half{background:linear-gradient(90deg,var(--bg) 50%,color-mix(in srgb,var(--primary) 18%,var(--bg)) 50%)}.hero--half .hero-grid{grid-template-columns:1fr 1fr;gap:0}.hero--half .hero-art{padding:0 0 0 clamp(16px,4vw,56px)}');
+      k.push('.hero--poster .hero-grid{grid-template-columns:1fr;text-align:center;border:5px solid var(--text);padding:clamp(28px,6vw,72px);background:var(--surface)}.hero--poster h1{text-transform:uppercase;max-width:none;font-size:clamp(2.2rem,6.4vw,5.4rem)}.hero--poster .lead{margin-inline:auto}.hero--poster .actions{justify-content:center}.hero--poster .hero-art{max-width:320px}');
+      k.push('.hero--tag .eyebrow{display:inline-block;transform:rotate(-3deg);background:var(--accent);color:var(--on-primary);padding:.35em .9em;margin-bottom:1em}');
+      k.push('.hero--cards .hero-grid,.hero--stage .hero-grid{grid-template-columns:1fr}.hero--cards .hero-art{max-width:none;width:100%}.hero--cards .lb{grid-template-columns:repeat(3,1fr);grid-template-rows:auto;aspect-ratio:auto}.hero--cards .lb-main{grid-row:auto}.hero--stage .hero-grid{text-align:center}.hero--stage .hero-art{order:2;max-width:760px}.hero--stage .actions{justify-content:center}.hero--stage .lead{margin-inline:auto}.hero--stage h1{margin-inline:auto;max-width:18ch}');
+      k.push('.hero--circle .hero-art{position:relative}.hero--circle .hero-art::before{content:"";position:absolute;inset:-10%;border-radius:50%;background:color-mix(in srgb,var(--accent) 26%,transparent);z-index:-1}');
+      k.push('.hero--frame .hero-grid{border:6px solid var(--text);padding:clamp(20px,4vw,56px);outline:2px solid var(--text);outline-offset:8px;background:var(--surface)}');
+      k.push('.hero--overlap .hero-grid{grid-template-columns:1fr 1fr}.hero--overlap .hero-art{margin-left:-14%;position:relative;z-index:2}.hero--overlap h1{position:relative;z-index:1}');
+      k.push('.hero--stripe{background:repeating-linear-gradient(90deg,var(--bg) 0 64px,color-mix(in srgb,var(--primary) 10%,var(--bg)) 64px 128px)}');
+
+      /* sistemas de beneficios nuevos */
+      k.push('.b--zigzag .b-list{grid-template-columns:1fr}.b--zigzag .b-item{max-width:68%}.b--zigzag .b-item:nth-child(even){margin-left:auto}');
+      k.push('.b--timeline .b-list{grid-template-columns:1fr;border-left:3px solid var(--primary);padding-left:30px;gap:28px;max-width:760px}.b--timeline .b-item{background:none;border:none;box-shadow:none;padding:0;position:relative}.b--timeline .b-item::before{content:"";position:absolute;left:-42px;top:8px;width:18px;height:18px;border-radius:50%;background:var(--primary)}');
+      k.push('.b--pills .b-list{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}.b--pills .b-item{border-radius:999px!important;padding:18px 30px}.b--pills .b-mark{margin-bottom:0}');
+      k.push('.b--stamp .b-mark{width:70px;height:70px;border:3px solid var(--primary);border-radius:50%;transform:rotate(-8deg);margin-bottom:10px}');
+      k.push('.b--ledger .b-list{grid-template-columns:1fr;gap:0}.b--ledger .b-item{display:grid;grid-template-columns:70px 1fr 2fr;align-items:baseline;gap:0 20px;border:none!important;border-bottom:1px solid var(--line)!important;border-radius:0;background:none;padding:20px 0;box-shadow:none!important}.b--ledger .b-item h3{margin:0}.b--ledger .b-item p{margin:0}.b--ledger .b-mark{width:auto;height:auto;justify-content:flex-start;font-size:1.6rem}');
+      k.push('.b--bigtext .b-list{grid-template-columns:1fr}.b--bigtext .b-item{background:none;border:none!important;border-radius:0;box-shadow:none!important;padding:8px 0}.b--bigtext h3{font-size:clamp(1.7rem,4.4vw,3.2rem);line-height:1.05}.b--bigtext p{max-width:60ch}.b--bigtext .b-mark{display:none}');
+      k.push('.b--overlapc .b-list{gap:0}.b--overlapc .b-item{box-shadow:0 18px 40px rgba(0,0,0,.18)!important;margin-right:-24px}.b--overlapc .b-item:nth-child(2){margin-top:34px}');
+      k.push('.b--strip .b-list{display:flex;overflow-x:auto;gap:16px;scroll-snap-type:x mandatory;padding-bottom:12px}.b--strip .b-item{flex:0 0 min(330px,82vw);scroll-snap-align:start}');
+      k.push('@media (max-width:860px){.hero--giant .hero-grid,.hero--collage .hero-grid,.hero--half .hero-grid,.hero--overlap .hero-grid{grid-template-columns:1fr}.hero--overlap .hero-art{margin-left:0}.hero--half{background:color-mix(in srgb,var(--primary) 10%,var(--bg))}.hero--cards .lb{grid-template-columns:1fr 1fr}.marq{margin-inline:0}.b--zigzag .b-item{max-width:100%}.b--ledger .b-item{grid-template-columns:1fr}}');
+      return k.join('\n');
+    })();
 
     /* ---------- scripts ---------- */
     const motionJs = motion ? `
@@ -553,7 +881,9 @@ ${motionJs}`;
     annex.push(`Generado con LandingForge IA · Motor local · ${new Date().toLocaleString('es')}`);
     annex.push(`Técnicas: ${Array.from(T).map(id => 'T' + D.tech(id).num + ' ' + D.tech(id).name).join(' | ') || 'ninguna'}`);
     annex.push(`Tema visual: ${th.name}`);
-    if (imgPrompts.length) { annex.push(''); annex.push('PROMPTS DE IMAGEN:'); imgPrompts.forEach(p => annex.push(`- ${p.use}: ${p.text}`)); }
+    if (dna) annex.push(`Semilla: ${dna.seed} · ${dna.title} · ${dna.palette.bg} ${dna.palette.primary} ${dna.palette.accent} · ${dna.fonts.display} + ${dna.fonts.body}`);
+    annex.push(`Sector: ${pack.label}`);
+    if (imgPrompts.length) { annex.push(''); annex.push('ILUSTRACIONES (dibujadas en código):'); imgPrompts.forEach(p => annex.push(`- ${p.use}: ${p.text}`)); }
     if (vidPrompt) { annex.push(''); annex.push('PROMPT DE VÍDEO:'); annex.push(vidPrompt); }
     if (report.length) { annex.push(''); annex.push('INFORME:'); report.forEach(r => annex.push(`- [${r.agent}] ${r.msg}`)); }
 
@@ -569,9 +899,9 @@ ${motionJs}`;
 <!--
 ${annex.join('\n').replace(/--/g, '—')}
 -->
-<style>${css}</style>
+<style>${css}${fxCss}</style>
 </head>
-<body>
+<body class="${bodyCls}">
 ${navHtml}
 <main>
 ${sections.map(s => H[s]).join('\n')}
@@ -581,7 +911,7 @@ ${footer}
 </body>
 </html>`;
 
-    return { html, report, theme: th.name, imagePrompts: imgPrompts, videoPrompt: vidPrompt, sections };
+    return { html, report, theme: th.name, imagePrompts: imgPrompts, videoPrompt: vidPrompt, sections, dna, pack: pack.id };
   }
 
   return { build, THEMES, contrast };
